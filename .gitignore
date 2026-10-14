@@ -1,0 +1,17 @@
+# Generated data (recreate with the pipeline; review text isn't ours to redistribute)
+*.jsonl
+laptops_all.csv
+*_pass2.csv
+*.db
+
+# Secrets (API keys go in .env, never in code)
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# One-off diagnostics
+check_macbooks.py
