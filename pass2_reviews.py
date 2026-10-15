@@ -71,7 +71,9 @@ def main():
     for row in shortlist:
         p = row["parent_asin"]
         top = child_asins[p].most_common(1)
-        row["asin"] = top[0][0] if top else ""
+        # keep an ASIN that's already set (e.g. the live one from scan_live.py);
+        # otherwise use the variant with the most reviews
+        row["asin"] = row.get("asin") or (top[0][0] if top else "")
         row["review_count"] = text_count[p]
         row["n_child_asins"] = len(child_asins[p])
         row["newest_review"] = (datetime.fromtimestamp(newest[p] / 1000, timezone.utc).date()

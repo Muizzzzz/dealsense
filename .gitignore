@@ -3,6 +3,7 @@
 laptops_all.csv
 *_pass2.csv
 *.db
+data/
 
 # Secrets (API keys go in .env, never in code)
 .env
