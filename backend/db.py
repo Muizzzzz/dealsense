@@ -31,7 +31,7 @@ CREATE INDEX IF NOT EXISTS idx_reviews_parent ON reviews(parent_asin);
 CREATE TABLE IF NOT EXISTS price_history (
     asin          TEXT NOT NULL,
     ts            INTEGER NOT NULL,   -- milliseconds since 1970
-    price         REAL NOT NULL,      -- USD
+    price         REAL,               -- USD; NULL = nobody selling it new at that time
     source        TEXT DEFAULT 'keepa',
     PRIMARY KEY (asin, ts, source)
 );

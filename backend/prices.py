@@ -28,13 +28,20 @@ def keepa_time_to_ms(t):
 
 
 def parse(product):
-    """Yield (asin, ts_ms, price_usd, source) rows; skips 'no offer' (-1) points."""
+    """Yield (asin, ts_ms, price_usd, source) rows; 'no offer' (-1) points become None."""
     csv = product.get("csv") or []
     for idx, name in SERIES.items():
         series = csv[idx] if idx < len(csv) and csv[idx] else []
         for t, cents in zip(series[0::2], series[1::2]):
-            if cents is not None and cents >= 0:
-                yield (product["asin"], keepa_time_to_ms(t), cents / 100, name)
+            if cents is not None:
+                yield (product["asin"], keepa_time_to_ms(t),
+                       cents / 100 if cents >= 0 else None, name)
+
+
+def reset_table(conn):
+    conn.execute("DROP TABLE IF EXISTS price_history")
+    conn.close()
+    return connect()          # connect() recreates the table with the current schema
 
 
 def store(conn, products):
@@ -55,6 +62,7 @@ def fetch():
     if not asins:
         sys.exit("No products in dealsense.db. Run: py -m backend.load_data")
     data = keepa.call("product", domain=1, asin=",".join(asins), history=1)
+    conn = reset_table(conn)
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     for p in data.get("products", []):
         (RAW_DIR / f"{p['asin']}.json").write_text(json.dumps(p), encoding="utf-8")
@@ -65,8 +73,10 @@ def fetch():
 
 
 def reparse():
-    conn = connect()
-    products = [json.loads(f.read_text(encoding="utf-8")) for f in RAW_DIR.glob("*.json")]
+    conn = reset_table(connect())
+    wanted = {r["asin"] for r in conn.execute("SELECT asin FROM products")}
+    products = [json.loads(f.read_text(encoding="utf-8")) for f in RAW_DIR.glob("*.json")
+                if f.stem in wanted]
     print(f"Re-parsed {len(products)} saved products, stored {store(conn, products):,} points.")
     summary(conn)
 
@@ -78,9 +88,9 @@ def day(ms):
 def summary(conn=None):
     conn = conn or connect()
     print(f"\n{'model':32} {'series':7} {'points':>6}  {'first':10}  {'last':10}  "
-          f"{'last $':>8} {'min $':>8} {'max $':>8}")
+          f"{'now $':>9} {'min $':>8} {'max $':>8}")
     for p in conn.execute("SELECT asin, model, price_tier FROM products ORDER BY price_tier"):
-        rows = conn.execute("SELECT source, COUNT(*) n, MIN(ts) a, MAX(ts) b, MIN(price) lo,"
+        rows = conn.execute("SELECT source, COUNT(price) n, MIN(ts) a, MAX(ts) b, MIN(price) lo,"
                             " MAX(price) hi FROM price_history WHERE asin = ? GROUP BY source",
                             (p["asin"],)).fetchall()
         if not rows:
@@ -88,8 +98,9 @@ def summary(conn=None):
         for r in rows:
             last = conn.execute("SELECT price FROM price_history WHERE asin=? AND source=? "
                                 "ORDER BY ts DESC LIMIT 1", (p["asin"], r["source"])).fetchone()
+            now = f"{last['price']:>8.2f}" if last["price"] is not None else " no offer"
             print(f"{p['model'][:32]:32} {r['source']:7} {r['n']:>6}  {day(r['a'])}  "
-                  f"{day(r['b'])}  {last['price']:>8.2f} {r['lo']:>8.2f} {r['hi']:>8.2f}")
+                  f"{day(r['b'])} {now} {r['lo'] or 0:>8.2f} {r['hi'] or 0:>8.2f}")
 
 
 if __name__ == "__main__":
