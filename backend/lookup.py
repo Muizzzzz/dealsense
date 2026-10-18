@@ -122,18 +122,32 @@ def current_price(p):
 
 def lookup(conn, text):
     asin = resolve_asin(text)
-    existing = conn.execute("SELECT * FROM products WHERE asin = ?", (asin,)).fetchone()
     p = fetch_product(asin)
     if not is_laptop(p):
         raise LookupError_(f"That looks like \"{(p.get('title') or '')[:80]}\", which isn't a "
-                           "laptop. DealSense only checks laptops for now.")
+                           "laptop. Myrmech Explorer only covers laptops for now.")
+    return register(conn, p)
+
+
+def short_title(title, limit=64):
+    """Amazon titles are long; cut at a word boundary and drop trailing punctuation."""
+    if len(title) <= limit:
+        return title
+    return title[:limit].rsplit(" ", 1)[0].rstrip(",;:|-– ")
+
+
+def register(conn, p):
+    """Store a Keepa product's price history and add it to products (unless it's in the
+    test set already). Returns its products row."""
+    asin = p["asin"]
     store(conn, [p])                          # refresh its price history
-    if existing:
+    existing = conn.execute("SELECT * FROM products WHERE asin = ?", (asin,)).fetchone()
+    if existing and existing["status"] != "lookup":
         return existing
     parent, n_reviews = match_reviews(conn, p)
     title = p.get("title") or ""
     conn.execute("INSERT OR REPLACE INTO products VALUES (?,?,?,?,?,?,?,?,?)", (
-        parent or asin, asin, "laptop", p.get("brand") or "", title[:70],
+        parent or asin, asin, "laptop", p.get("brand") or "", short_title(title),
         tier_for(current_price(p)), title, n_reviews, "lookup"))
     conn.commit()
     return conn.execute("SELECT * FROM products WHERE asin = ?", (asin,)).fetchone()

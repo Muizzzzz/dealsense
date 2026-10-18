@@ -3,45 +3,29 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DealSense</title>
+<title>Myrmech Explorer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
 <style>
 :root {
-  color-scheme: light;
-  --paper: #fbfbf8;
-  --sheet: #ffffff;
-  --ink: #14213d;
-  --ink-2: #4a5468;
-  --ink-3: #6b7385;
-  --rule: #dcdfe5;
-  --tag: #ffe14d;          /* shelf-tag yellow: the one bold accent */
-  --tag-ink: #14213d;
-  --series: #2a78d6;       /* chart line, categorical slot 1 */
-  --band: rgba(42, 120, 214, 0.12);
-  --median: #6b7385;
-  --good: #0ca30c; --good-text: #006300;
-  --bad: #d03b3b;  --bad-text: #b02525;
-  --neutral: #8a8f9a;
-  --focus: #2a78d6;
-}
-@media (prefers-color-scheme: dark) {
-  :root:where(:not([data-theme="light"])) {
-    color-scheme: dark;
-    --paper: #12161f; --sheet: #1a1f2b;
-    --ink: #eef0f4; --ink-2: #c3c8d2; --ink-3: #9aa1ae; --rule: #2e3545;
-    --tag: #ffe14d; --tag-ink: #14213d;
-    --series: #3987e5; --band: rgba(57, 135, 229, 0.18); --median: #9aa1ae;
-    --good-text: #4cc94c; --bad-text: #f07b7b; --neutral: #9aa1ae; --focus: #6da7ec;
-  }
-}
-:root[data-theme="dark"] {
   color-scheme: dark;
-  --paper: #12161f; --sheet: #1a1f2b;
-  --ink: #eef0f4; --ink-2: #c3c8d2; --ink-3: #9aa1ae; --rule: #2e3545;
-  --series: #3987e5; --band: rgba(57, 135, 229, 0.18); --median: #9aa1ae;
-  --good-text: #4cc94c; --bad-text: #f07b7b; --neutral: #9aa1ae; --focus: #6da7ec;
+  --paper: #1b1f26;        /* gunmetal */
+  --sheet: #232832;
+  --raised: #2b313c;
+  --ink: #eceef2;          /* bright silver */
+  --ink-2: #c3c8d1;        /* silver */
+  --ink-3: #8f97a4;        /* dim silver */
+  --rule: #384050;
+  --accent: #5b9cf5;       /* blue: actions, links, citations */
+  --accent-ink: #0d1626;
+  --series: #3987e5;       /* chart line, dark categorical slot 1 */
+  --band: rgba(57, 135, 229, 0.20);
+  --median: #a4abb7;
+  --good: #0ca30c; --good-text: #4cc94c;
+  --bad: #d03b3b;  --bad-text: #f07b7b;
+  --neutral: #8f97a4;
+  --focus: #8fbcff;
 }
 
 * { box-sizing: border-box; }
@@ -57,21 +41,24 @@ body {
 
 /* masthead */
 header.top { padding: 28px 0 8px; }
-.brand { font-weight: 800; font-size: 1.1rem; letter-spacing: -0.01em; color: var(--ink); }
-.brand span { display: inline-block; background: var(--tag); color: var(--tag-ink);
-  padding: 0 6px; border-radius: 3px; margin-right: 2px; }
+.brand { font-weight: 800; font-size: 1.15rem; letter-spacing: 0.01em;
+  font-variation-settings: "wdth" 112;
+  background: linear-gradient(100deg, #f4f6f9 0%, #9aa3b0 38%, #e9ecf1 55%, #8a93a1 80%, #d7dbe2 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent; }
+.brand b { font-weight: 800; color: var(--accent); -webkit-text-fill-color: var(--accent); }
 
 /* ask */
 .ask { padding: 40px 0 28px; }
 h1 { font-size: clamp(2.2rem, 5.5vw, 3.6rem); line-height: 1.02; margin: 0 0 10px;
   font-weight: 800; font-variation-settings: "wdth" 72; letter-spacing: -0.01em; max-width: 16ch; }
 .lede { color: var(--ink-2); max-width: 60ch; margin: 0 0 24px; }
-form.search { display: flex; gap: 0; max-width: 760px; background: var(--tag);
-  border-radius: 10px; padding: 6px; box-shadow: 0 1px 0 rgba(20,33,61,.15); }
-form.search input { flex: 1; min-width: 0; border: 0; background: #fff; color: #14213d;
-  font: inherit; font-size: 1rem; padding: 14px 14px; border-radius: 7px; }
-form.search button { border: 0; background: var(--tag-ink); color: #fff; font: inherit;
-  font-weight: 700; padding: 0 22px; border-radius: 7px; margin-left: 6px; cursor: pointer; }
+form.search { display: flex; gap: 0; max-width: 780px; border-radius: 12px; padding: 2px;
+  background: linear-gradient(100deg, #c9ced6, #6f7886 45%, #c9ced6 70%, #7b8492); }
+form.search input { flex: 1; min-width: 0; border: 0; background: var(--sheet); color: var(--ink);
+  font: inherit; font-size: 1rem; padding: 15px 16px; border-radius: 10px 0 0 10px; }
+form.search input::placeholder { color: var(--ink-3); }
+form.search button { border: 0; background: var(--accent); color: var(--accent-ink); font: inherit;
+  font-weight: 700; padding: 0 24px; border-radius: 0 10px 10px 0; cursor: pointer; }
 form.search button:disabled { opacity: .6; cursor: progress; }
 .hint { font-size: .85rem; color: var(--ink-3); margin: 10px 0 0; }
 .examples { margin-top: 28px; }
@@ -84,6 +71,54 @@ form.search button:disabled { opacity: .6; cursor: progress; }
 .chip .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
 .chip.unavailable { color: var(--ink-3); }
 
+/* example prompts */
+.prompts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.prompt { font: inherit; font-size: .88rem; color: var(--ink-2); background: transparent;
+  border: 1px dashed var(--rule); border-radius: 8px; padding: 6px 11px; cursor: pointer; text-align: left; }
+.prompt:hover { color: var(--ink); border-color: var(--ink-3); }
+
+/* shopping answer */
+.shop-q { color: var(--ink-3); font-size: .92rem; margin: 0 0 6px; }
+.shop-answer { font-size: 1.15rem; max-width: 64ch; margin: 0 0 18px; }
+.picks { margin: 0 0 22px; padding: 0; list-style: none; max-width: 70ch; }
+.picks li { padding: 8px 0 8px 22px; position: relative; color: var(--ink-2); }
+.picks li::before { content: ""; position: absolute; left: 4px; top: 16px; width: 8px; height: 8px;
+  border-radius: 50%; background: var(--accent); }
+.cands { border-top: 1px solid var(--rule); }
+.cand { display: grid; grid-template-columns: 2.6rem 1fr auto auto auto; gap: 14px; align-items: center;
+  padding: 12px 0; border-bottom: 1px solid var(--rule); scroll-margin-top: 20px; }
+.cand.flash { background: var(--band); }
+.cand .id { color: var(--accent); font-weight: 700; font-size: .9rem; }
+.cand .nm { color: var(--ink); }
+.cand .nm small { display: block; color: var(--ink-3); font-size: .8rem; }
+.cand .pr { font-weight: 800; font-size: 1.25rem; font-variation-settings: "wdth" 70; text-align: right; }
+.mini { display: inline-flex; align-items: center; gap: 6px; font-size: .82rem; font-weight: 700;
+  border: 1.5px solid; border-radius: 999px; padding: 3px 9px 3px 6px; white-space: nowrap; }
+.mini svg { width: 14px; height: 14px; }
+.mini.genuine_low { color: var(--good-text); border-color: var(--good); }
+.mini.inflated { color: var(--bad-text); border-color: var(--bad); }
+.mini.typical, .mini.unavailable, .mini.insufficient_history, .mini.no_data { color: var(--ink-2); border-color: var(--neutral); }
+.open { font: inherit; font-size: .85rem; font-weight: 600; color: var(--accent); background: none;
+  border: 1px solid var(--rule); border-radius: 8px; padding: 6px 10px; cursor: pointer; white-space: nowrap; }
+.open:hover { border-color: var(--accent); }
+@media (max-width: 760px) { .cand { grid-template-columns: 2rem 1fr; }
+  .cand .pr { text-align: left; grid-column: 2; } .cand .vb, .cand .op { grid-column: 2; } }
+.working { color: var(--ink-3); }
+.working::after { content: ""; display: inline-block; width: 1em; text-align: left;
+  animation: dots 1.2s steps(4) infinite; }
+@keyframes dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
+@media (prefers-reduced-motion: reduce) { .working::after { animation: none; content: "..."; } }
+
+/* ask about this laptop */
+.ask-one { margin-top: 30px; max-width: 760px; }
+.ask-one form { display: flex; gap: 8px; }
+.ask-one input { flex: 1; min-width: 0; font: inherit; color: var(--ink); background: var(--raised);
+  border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px; }
+.ask-one button { font: inherit; font-weight: 700; color: var(--accent-ink); background: var(--accent);
+  border: 0; border-radius: 8px; padding: 0 16px; cursor: pointer; }
+.qa { margin-top: 12px; padding: 12px 14px; background: var(--raised); border-radius: 8px; max-width: 70ch; }
+.qa .q { color: var(--ink-3); font-size: .88rem; margin-bottom: 4px; }
+
 /* messages */
 .msg { max-width: 760px; margin: 0 0 20px; padding: 14px 16px; border-radius: 8px;
   border: 1px solid var(--rule); background: var(--sheet); }
@@ -91,13 +126,14 @@ form.search button:disabled { opacity: .6; cursor: progress; }
 
 /* result sheet */
 .result { background: var(--sheet); border: 1px solid var(--rule); border-radius: 14px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
   padding: 28px; margin: 8px 0 48px; }
 .result[hidden] { display: none; }
 .r-head { display: flex; justify-content: space-between; gap: 16px; align-items: baseline;
   flex-wrap: wrap; }
 .r-name { font-size: 1.25rem; font-weight: 700; margin: 0; max-width: 46ch; }
 .r-sub { color: var(--ink-3); font-size: .88rem; margin: 2px 0 0; }
-.r-link { color: var(--ink); font-weight: 600; font-size: .92rem; }
+.r-link { color: var(--accent); font-weight: 600; font-size: .92rem; }
 
 .verdict-row { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; margin: 22px 0 6px; }
 .price { font-size: clamp(3rem, 9vw, 5.4rem); line-height: .9; font-weight: 800;
@@ -121,7 +157,7 @@ form.search button:disabled { opacity: .6; cursor: progress; }
 .chart-box { margin-top: 30px; position: relative; }
 .chart-box h3, .col h3 { font-size: 1rem; margin: 0 0 8px; }
 .chart-box svg { width: 100%; height: 260px; display: block; }
-.tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--paper);
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: #1b1f26;
   font-size: .82rem; padding: 6px 9px; border-radius: 6px; white-space: nowrap;
   transform: translate(-50%, -110%); opacity: 0; }
 .legend { font-size: .82rem; color: var(--ink-3); display: flex; gap: 18px; flex-wrap: wrap;
@@ -145,9 +181,9 @@ ul.pc li::before { position: absolute; left: 0; top: 6px; font-weight: 800; widt
 ul.pc.pros li::before { content: "+"; color: var(--good-text); }
 ul.pc.cons li::before { content: "\2212"; color: var(--bad-text); }
 .pc-label { font-weight: 600; margin: 14px 0 2px; }
-.bottom { margin-top: 26px; padding: 16px 18px; border-left: 4px solid var(--tag);
+.bottom { margin-top: 26px; padding: 16px 18px; border-left: 4px solid var(--accent);
   background: var(--paper); border-radius: 0 8px 8px 0; max-width: 72ch; }
-.cite { font: inherit; font-size: .78em; font-weight: 700; color: var(--series);
+.cite { font: inherit; font-size: .78em; font-weight: 700; color: var(--accent);
   background: none; border: 0; padding: 0 1px; cursor: pointer; vertical-align: 1px; }
 .cite:hover { text-decoration: underline; }
 
@@ -165,26 +201,36 @@ footer { color: var(--ink-3); font-size: .82rem; padding: 0 0 40px; max-width: 7
 </style>
 </head>
 <body>
-<header class="top wrap"><div class="brand"><span>Deal</span>Sense</div></header>
+<header class="top wrap"><div class="brand">Myrmech <b>Explorer</b></div></header>
 
 <main class="wrap">
   <section class="ask">
-    <h1>Is this laptop's price actually good?</h1>
-    <p class="lede">Paste an Amazon laptop link. DealSense checks its real price history, tells you
-      whether today's price is low, normal, or inflated, and sums up what owners say.</p>
+    <h1>Find the right product at the right price.</h1>
+    <p class="lede">Ask for what you need, or paste an Amazon product link. Myrmech Explorer searches
+      Amazon, checks each product's real price history, tells you whether today's price is low, normal
+      or inflated, and sums up what owners say. We're starting with laptops.</p>
     <form class="search" id="search">
-      <label for="q" class="sr" style="position:absolute;left:-9999px">Amazon link or product ID</label>
-      <input id="q" name="q" placeholder="https://www.amazon.com/dp/…" autocomplete="off" required>
-      <button id="go" type="submit">Check price</button>
+      <label for="q" class="sr" style="position:absolute;left:-9999px">Ask a question or paste an Amazon product link</label>
+      <input id="q" name="q" placeholder="Ask a question or paste an Amazon product link" autocomplete="off" required>
+      <button id="go" type="submit">Explore</button>
     </form>
-    <p class="hint">Works with any Amazon laptop link or its 10-character product ID.</p>
+    <div class="prompts" id="prompts">
+      <button class="prompt" type="button">A laptop with an RTX 50-series card around $800</button>
+      <button class="prompt" type="button">A light laptop for college under $600</button>
+      <button class="prompt" type="button">Best MacBook deal right now</button>
+    </div>
     <div class="examples">
-      <h2>Or try one of our 15 test laptops</h2>
+      <h2>Or check one of these laptops</h2>
       <div class="chips" id="chips"></div>
     </div>
   </section>
 
   <div id="msg"></div>
+
+  <section class="result" id="shop" hidden aria-live="polite">
+    <p class="shop-q" id="shop-q"></p>
+    <div id="shop-body"></div>
+  </section>
 
   <section class="result" id="result" hidden aria-live="polite">
     <div class="r-head">
@@ -227,6 +273,16 @@ footer { color: var(--ink-3); font-size: .82rem; padding: 0 0 40px; max-width: 7
     </div>
     <div class="bottom" id="bottom" hidden></div>
 
+    <div class="ask-one">
+      <h3>Ask about this laptop</h3>
+      <form id="ask-one">
+        <label for="q1" class="sr" style="position:absolute;left:-9999px">Your question about this laptop</label>
+        <input id="q1" placeholder="Is the battery good? Is it OK for gaming?" autocomplete="off" required>
+        <button type="submit">Ask</button>
+      </form>
+      <div id="qa"></div>
+    </div>
+
     <details class="evidence" id="evidence" hidden>
       <summary id="ev-sum">Reviews quoted above</summary>
       <div id="reviews"></div>
@@ -235,9 +291,10 @@ footer { color: var(--ink-3); font-size: .82rem; padding: 0 0 40px; max-width: 7
 </main>
 
 <footer class="wrap">
-  Price history from Keepa (Amazon US, lowest new price from any seller). Reviews from the Amazon
-  Reviews 2023 dataset (McAuley Lab, UCSD), so they cover laptops sold through 2023. The verdict comes
-  from a statistical price model; Claude only writes the explanation, citing the evidence shown.
+  Myrmech Explorer. Prices and live Amazon search from Keepa (Amazon US, lowest new price from any
+  seller). Owner reviews from the Amazon Reviews 2023 dataset (McAuley Lab, UCSD), so they cover laptops
+  sold through 2023. Verdicts come from a statistical price model; Claude only explains them and writes
+  recommendations from the listings shown, citing its sources.
 </footer>
 
 <script>
@@ -274,7 +331,10 @@ function showMsg(text, isError) {
 /* ---------- example chips ---------- */
 async function loadChips() {
   try {
-    const list = await api("/api/laptops");
+    // five examples that cover each price tier and verdict; the full test set stays in the API
+    const FEATURED = ["B09HVC79PC", "B085B5SXLY", "B086KKKT15", "B08DDGJQDW", "B09JQKBQSB"];
+    const list = (await api("/api/laptops")).filter(l => FEATURED.includes(l.asin))
+      .sort((a, b) => FEATURED.indexOf(a.asin) - FEATURED.indexOf(b.asin));
     $("chips").innerHTML = list.map(l => {
       const v = VERDICT[l.verdict] || VERDICT.no_data;
       const price = l.current_price ? money(l.current_price) : "not sold new";
@@ -312,10 +372,83 @@ async function run({asin, query}) {
   }
 }
 
+const LINKISH = /(amazon\.|amzn\.|a\.co\/|\/dp\/|^https?:\/\/)|^[A-Za-z0-9]{10}$/;
 $("search").addEventListener("submit", (e) => {
   e.preventDefault();
   const q = $("q").value.trim();
-  if (q) run({query: q});
+  if (!q) return;
+  if (LINKISH.test(q)) run({query: q}); else askShopping(q);
+});
+document.querySelectorAll(".prompt").forEach(b => b.addEventListener("click", () => {
+  $("q").value = b.textContent; askShopping(b.textContent);
+}));
+
+/* ---------- shopping questions ---------- */
+function mini(verdict) {
+  const v = VERDICT[verdict] || VERDICT.no_data;
+  return `<span class="mini ${verdict}"><svg viewBox="0 0 24 24" aria-hidden="true">${v.icon}</svg>${v.label}</span>`;
+}
+async function askShopping(question) {
+  const ticket = ++current;
+  showMsg("");
+  $("go").disabled = true;
+  $("shop").hidden = false;
+  $("shop-q").textContent = "You asked: " + question;
+  $("shop-body").innerHTML = '<p class="working">Searching Amazon and checking each laptop\'s price history (about 15 seconds)</p>';
+  $("shop").scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
+  try {
+    const r = await api("/api/ask", {method: "POST", headers: {"Content-Type": "application/json"},
+                                      body: JSON.stringify({question})});
+    if (ticket !== current) return;
+    const a = r.answer || {};
+    const byId = Object.fromEntries((r.candidates || []).map(c => [c.id, c]));
+    let html = `<p class="shop-answer">${cites(a.answer || "")}</p>`;
+    if ((a.picks || []).length)
+      html += `<ul class="picks">${a.picks.map(p => `<li>${cites(p.why)}</li>`).join("")}</ul>`;
+    if (a.caveats) html += `<p class="r-sub" style="margin:-8px 0 20px">${cites(a.caveats)}</p>`;
+    if ((r.candidates || []).length) {
+      html += `<h3 style="font-size:1rem;margin:0 0 4px">Laptops found on Amazon just now</h3><div class="cands">` +
+        r.candidates.map(c => `<div class="cand" id="cand-${c.id}">
+          <span class="id">${c.id}</span>
+          <span class="nm">${esc(c.name)}<small>${c.review_count ? c.review_count.toLocaleString() + " owner reviews in our data" : "No owner reviews in our data yet"}${c.median ? ". Usual price " + money(c.median) : ""}</small></span>
+          <span class="pr num">${money(c.price)}</span>
+          <span class="vb">${mini(c.verdict)}</span>
+          <span class="op"><button class="open" type="button" data-asin="${c.asin}">Price history</button></span>
+        </div>`).join("") + "</div>";
+    }
+    $("shop-body").innerHTML = html;
+    $("shop-body").querySelectorAll(".open").forEach(b => b.addEventListener("click", () => run({asin: b.dataset.asin})));
+  } catch (e) {
+    if (ticket === current) { $("shop-body").innerHTML = ""; showMsg(e.message, true); }
+  } finally {
+    if (ticket === current) $("go").disabled = false;
+  }
+}
+
+/* ---------- questions about the open laptop ---------- */
+let qaCount = 0;
+$("ask-one").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const question = $("q1").value.trim(), asin = window.__last && window.__last.asin;
+  if (!question || !asin) return;
+  const box = document.createElement("div");
+  box.className = "qa";
+  box.innerHTML = `<div class="q">${esc(question)}</div><div class="working">Reading the reviews</div>`;
+  $("qa").prepend(box);
+  $("q1").value = "";
+  try {
+    const r = await api("/api/ask", {method: "POST", headers: {"Content-Type": "application/json"},
+                                      body: JSON.stringify({question, asin})});
+    const n = ++qaCount, revs = r.reviews || [];
+    const answer = esc(r.answer.answer || "").replace(/\[(R\d+)\]/g, (_, id) =>
+      `<button class="cite" type="button" data-qa="${n}-${id}" aria-label="Review ${id}">[${id}]</button>`);
+    box.querySelector(".working").outerHTML = `<div>${answer}</div>` + (revs.length ? `
+      <details style="margin-top:8px"><summary class="r-sub" style="cursor:pointer">The ${revs.length} reviews this answer used</summary>
+      ${revs.map(v => `<div class="review" id="qa-${n}-${v.id}"><div class="meta">[${v.id}] ${v.rating}/5</div>
+        <b>${esc(v.title)}</b><p>${esc(v.text)}</p></div>`).join("")}</details>` : "");
+  } catch (err) {
+    box.querySelector(".working").outerHTML = `<div>${esc(err.message)}</div>`;
+  }
 });
 
 /* ---------- rendering ---------- */
@@ -338,12 +471,13 @@ function renderPrice(d) {
   $("owners").innerHTML = '<p class="headline loading">Reading the reviews…</p>';
   $("bottom").hidden = true;
   $("evidence").hidden = true;
+  if (!window.__last || window.__last.asin !== d.asin) $("qa").innerHTML = "";
   drawRuler(p);
   drawChart(d.chart, p);
 }
 
 function cites(text) {
-  return esc(text).replace(/\[(R\d+|P|L)\]/g, (_, id) =>
+  return esc(text).replace(/\[(R\d+|A\d+|P|L)\]/g, (_, id) =>
     `<button class="cite" type="button" data-cite="${id}" aria-label="Source ${id}">[${id}]</button>`);
 }
 
@@ -379,9 +513,18 @@ function renderWriteup(d) {
 document.addEventListener("click", (e) => {
   const b = e.target.closest(".cite");
   if (!b) return;
+  if (b.dataset.qa) {
+    const el = $("qa-" + b.dataset.qa);
+    if (!el) return;
+    el.closest("details").open = true;
+    el.scrollIntoView({block: "center"});
+    el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 1600);
+    return;
+  }
   const id = b.dataset.cite;
   let el;
   if (id === "P" || id === "L") el = $("facts-col");
+  else if (id[0] === "A") el = $("cand-" + id);
   else { $("evidence").open = true; el = $("rev-" + id); }
   if (!el) return;
   el.scrollIntoView({block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
@@ -396,14 +539,14 @@ function drawRuler(p) {
   const pad = (hi - lo) * 0.06 || 10, a = lo - pad, b = hi + pad;
   const x = (v) => 34 + (v - a) / (b - a) * (W - 68);   // margin keeps edge labels on screen
   const y = 40;
+  const today = x(p.current_price);
   const tick = (v, label, below) => `<line x1="${x(v)}" x2="${x(v)}" y1="${y - 8}" y2="${y + 8}" stroke="var(--ink-3)" stroke-width="1.5"/>
     <text x="${x(v)}" y="${below ? y + 26 : y - 14}" text-anchor="middle" font-size="12" fill="var(--ink-3)" class="num">${label}</text>`;
-  const today = x(p.current_price);
   box.innerHTML = `<svg viewBox="0 0 ${W} 86" role="img" aria-label="Today's price ${money(p.current_price)} compared with its usual range of ${money(p.p25)} to ${money(p.p75)}">
     <line x1="${x(p.window_low)}" x2="${x(p.window_high)}" y1="${y}" y2="${y}" stroke="var(--rule)" stroke-width="10" stroke-linecap="round"/>
     <line x1="${x(p.p25)}" x2="${x(p.p75)}" y1="${y}" y2="${y}" stroke="var(--series)" stroke-opacity=".35" stroke-width="10"/>
-    ${tick(p.window_low, "low " + money(p.window_low), true)}
-    ${tick(p.window_high, "high " + money(p.window_high), true)}
+    ${Math.abs(x(p.window_low) - today) > 80 ? tick(p.window_low, "low " + money(p.window_low), true) : ""}
+    ${Math.abs(x(p.window_high) - today) > 80 ? tick(p.window_high, "high " + money(p.window_high), true) : ""}
     <line x1="${x(p.median)}" x2="${x(p.median)}" y1="${y - 12}" y2="${y + 12}" stroke="var(--ink)" stroke-width="2"/>
     <text x="${x(p.median)}" y="${y - 18}" text-anchor="middle" font-size="12" fill="var(--ink-2)" class="num">median ${money(p.median)}</text>
     <path d="M${today - 8} ${y + 30} L${today} ${y + 16} L${today + 8} ${y + 30} Z" fill="var(--ink)"/>
@@ -496,7 +639,7 @@ window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer
   if (!$("result").hidden && window.__last) { drawChart(window.__last.chart, window.__last.price);
     drawRuler(window.__last.price); } }, 150); });
 const _render = renderPrice;
-renderPrice = (d) => { window.__last = d; _render(d); };
+renderPrice = (d) => { _render(d); window.__last = d; };
 
 loadChips();
 </script>

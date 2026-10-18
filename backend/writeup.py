@@ -30,7 +30,7 @@ ASPECTS = ["battery life", "performance speed", "screen display", "build quality
 PER_ASPECT = 2
 SNIPPET = 600
 
-SYSTEM = """You are DealSense, a shopping assistant that tells people whether a laptop's \
+SYSTEM = """You are Myrmech Explorer, a shopping assistant that tells people whether a laptop's \
 current price is a good deal and what owners say about it.
 
 Rules:
@@ -105,13 +105,14 @@ def build_prompt(product, price, reviews):
     return "\n".join(lines)
 
 
-def call_claude(prompt):
+def call_claude(prompt, system=None, max_tokens=2000):
+    """One Claude call. Other modules (shop.py) pass their own system prompt."""
     load_env()
     key = os.environ.get("ANTHROPIC_API_KEY")
     if not key:
         sys.exit("ANTHROPIC_API_KEY not found in .env. Use --dry-run to test without it.")
-    body = json.dumps({"model": os.environ.get("DEALSENSE_MODEL", MODEL), "max_tokens": 2000,
-                       "system": SYSTEM,
+    body = json.dumps({"model": os.environ.get("MODEL", os.environ.get("DEALSENSE_MODEL", MODEL)),
+                       "max_tokens": max_tokens, "system": system or SYSTEM,
                        "messages": [{"role": "user", "content": prompt}]}).encode()
     req = urllib.request.Request("https://api.anthropic.com/v1/messages", data=body, headers={
         "x-api-key": key, "anthropic-version": "2023-06-01",

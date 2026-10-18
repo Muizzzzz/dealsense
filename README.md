@@ -1,15 +1,18 @@
-# DealSense
+# Myrmech Explorer
 
-DealSense tells online shoppers whether a product's current price is actually a good deal. It combines two agents:
+Myrmech Explorer cuts down the research it takes to buy a laptop. Ask it what you need ("a laptop
+with an RTX 50-series card around $800") or paste an Amazon link, and it tells you which laptops fit,
+whether today's price is actually a good deal, and what owners say. It combines three agents:
 
 - **Price agent:** compares today's price with the product's price history and labels it a genuine low, a typical price, or an inflated "discount".
 - **Research agent:** searches real customer reviews for the product and summarizes what owners report, with citations.
+- **Shopping agent:** turns a plain-English question into Amazon searches and a price range, searches Amazon live through Keepa, runs the price agent on every match, and recommends from those real listings.
 
 A coordinating step combines both into one short answer, for example: *"20% below its 90-day average; reviewers flag battery life as a weak point."*
 
 The pilot covers laptops. The data model is category-based, so headphones and TVs can be added later.
 
-DealSense is a CMSC 698 senior capstone (Computer Science and Data Science) at Lawrence University, and the basis of an I-E 200 venture pitch.
+Myrmech Explorer is a CMSC 698 senior capstone (Computer Science and Data Science) at Lawrence University, and the basis of an I-E 200 venture pitch.
 
 ## Status
 
@@ -23,6 +26,7 @@ DealSense is a CMSC 698 senior capstone (Computer Science and Data Science) at L
 | Claude write-up with citations | Done |
 | Paste any Amazon laptop link | Done |
 | Web app (FastAPI + one-page front end) | Done |
+| Ask questions: shopping search, and questions about one laptop | Done |
 | Embedding search, compared against BM25 | Planned |
 | Live review text for laptops newer than 2023 | Planned |
 
@@ -64,7 +68,7 @@ ANTHROPIC_API_KEY=...
 ```
 
 ```
-git clone https://github.com/Muizzzzz/Dealsense.git
+git clone https://github.com/Muizzzzz/Dealsense.git   # repository name unchanged
 cd Dealsense
 ```
 
@@ -112,7 +116,8 @@ Run these from the project folder, in order.
    ```
    py -m uvicorn backend.api:app --reload
    ```
-   Then open http://127.0.0.1:8000 and paste an Amazon laptop link, or pick a test laptop.
+   Then open http://127.0.0.1:8000. Type a question, paste an Amazon laptop link, or pick a test
+   laptop. A shopping question uses about 10-20 Keepa tokens and two Claude calls.
 
 ## How the verdict works
 
@@ -146,6 +151,7 @@ backend/
   search.py           BM25 review search
   writeup.py          Claude write-up from the verdict and reviews
   lookup.py           paste-a-link: any Amazon laptop by link or ASIN
+  shop.py             questions: live shopping search, and questions about one laptop
   api.py              FastAPI web API; serves web/index.html
 web/
   index.html          the web page

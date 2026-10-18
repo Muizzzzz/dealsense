@@ -1,4 +1,4 @@
-"""DealSense web API (FastAPI). Also serves the web page in /web.
+"""Myrmech Explorer web API (FastAPI). Also serves the web page in /web.
 
 Run, from the Dealsense folder:
     py -m pip install fastapi uvicorn      (once)
@@ -9,6 +9,9 @@ Endpoints:
     GET  /api/laptops               the test set with today's verdicts (fast, no Claude)
     GET  /api/check/{asin}          full result for a laptop already in the database
     POST /api/lookup  {"query": …}  any Amazon laptop link or ASIN (1 Keepa token if new)
+    POST /api/ask     {"question": …, "asin": optional}
+                                    shopping question (Keepa search, ~10-20 tokens), or a
+                                    question about one laptop when asin is given
 Add ?writeup=false to skip the Claude write-up (faster, free).
 """
 from datetime import date, timedelta
@@ -27,7 +30,7 @@ from backend.writeup import writeup
 WEB = Path(__file__).resolve().parent.parent / "web"
 CHART_DAYS = 730
 
-app = FastAPI(title="DealSense")
+app = FastAPI(title="Myrmech Explorer")
 
 
 def chart(conn, asin):
@@ -37,10 +40,16 @@ def chart(conn, asin):
     return [{"date": str(d), "price": p} for d, p in sorted(days.items()) if d >= start]
 
 
+def display_name(product):
+    """Brand + model, without doubling the brand (Amazon titles usually start with it)."""
+    brand, model = (product["brand"] or "").strip(), (product["model"] or "").strip()
+    return model if not brand or model.lower().startswith(brand.lower()) else f"{brand} {model}"
+
+
 def full_result(conn, product, with_writeup=True):
     price = analyze(conn, product)
     result = {
-        "asin": product["asin"], "name": f"{product['brand']} {product['model']}".strip(),
+        "asin": product["asin"], "name": display_name(product),
         "title": product["title"], "tier": product["price_tier"], "status": product["status"],
         "review_count": product["review_count"],
         "amazon_url": f"https://www.amazon.com/dp/{product['asin']}",
@@ -64,7 +73,7 @@ def laptops():
                           "ORDER BY CASE price_tier WHEN 'budget' THEN 0 WHEN 'mid-range' "
                           "THEN 1 ELSE 2 END, model"):
         r = analyze(conn, p)
-        out.append({"asin": p["asin"], "name": f"{p['brand']} {p['model']}", "tier":
+        out.append({"asin": p["asin"], "name": display_name(p), "tier":
                     p["price_tier"], "status": p["status"], "verdict": r["verdict"],
                     "current_price": r.get("current_price"), "median": r.get("median"),
                     "review_count": p["review_count"]})
@@ -94,6 +103,27 @@ def lookup_route(q: Query, writeup: bool = True):
     except SystemExit as e:                  # Keepa errors (bad key, out of tokens)
         raise HTTPException(502, str(e))
     return full_result(conn, product, writeup)
+
+
+class Ask(BaseModel):
+    question: str
+    asin: str | None = None
+
+
+@app.post("/api/ask")
+def ask_route(q: Ask):
+    from backend.shop import ask_product, ask_shopping
+    question = q.question.strip()
+    if len(question) < 3:
+        raise HTTPException(400, "Type a question about laptops, e.g. "
+                                 "\"a light laptop for college under $700\".")
+    conn = connect()
+    try:
+        if q.asin:
+            return ask_product(conn, q.asin.upper(), question)
+        return ask_shopping(conn, question)
+    except SystemExit as e:                  # Keepa or Claude errors
+        raise HTTPException(502, str(e))
 
 
 @app.get("/")
