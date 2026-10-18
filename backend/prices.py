@@ -89,7 +89,8 @@ def summary(conn=None):
     conn = conn or connect()
     print(f"\n{'model':32} {'series':7} {'points':>6}  {'first':10}  {'last':10}  "
           f"{'now $':>9} {'min $':>8} {'max $':>8}")
-    for p in conn.execute("SELECT asin, model, price_tier FROM products ORDER BY price_tier"):
+    for p in conn.execute("SELECT asin, model, price_tier FROM products "
+                          "WHERE status IN ('live', 'sold_out') ORDER BY price_tier"):
         rows = conn.execute("SELECT source, COUNT(price) n, MIN(ts) a, MAX(ts) b, MIN(price) lo,"
                             " MAX(price) hi FROM price_history WHERE asin = ? GROUP BY source",
                             (p["asin"],)).fetchall()

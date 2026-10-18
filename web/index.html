@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DealSense</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+<style>
+:root {
+  color-scheme: light;
+  --paper: #fbfbf8;
+  --sheet: #ffffff;
+  --ink: #14213d;
+  --ink-2: #4a5468;
+  --ink-3: #6b7385;
+  --rule: #dcdfe5;
+  --tag: #ffe14d;          /* shelf-tag yellow: the one bold accent */
+  --tag-ink: #14213d;
+  --series: #2a78d6;       /* chart line, categorical slot 1 */
+  --band: rgba(42, 120, 214, 0.12);
+  --median: #6b7385;
+  --good: #0ca30c; --good-text: #006300;
+  --bad: #d03b3b;  --bad-text: #b02525;
+  --neutral: #8a8f9a;
+  --focus: #2a78d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --paper: #12161f; --sheet: #1a1f2b;
+    --ink: #eef0f4; --ink-2: #c3c8d2; --ink-3: #9aa1ae; --rule: #2e3545;
+    --tag: #ffe14d; --tag-ink: #14213d;
+    --series: #3987e5; --band: rgba(57, 135, 229, 0.18); --median: #9aa1ae;
+    --good-text: #4cc94c; --bad-text: #f07b7b; --neutral: #9aa1ae; --focus: #6da7ec;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #12161f; --sheet: #1a1f2b;
+  --ink: #eef0f4; --ink-2: #c3c8d2; --ink-3: #9aa1ae; --rule: #2e3545;
+  --series: #3987e5; --band: rgba(57, 135, 229, 0.18); --median: #9aa1ae;
+  --good-text: #4cc94c; --bad-text: #f07b7b; --neutral: #9aa1ae; --focus: #6da7ec;
+}
+
+* { box-sizing: border-box; }
+html { font-size: 17px; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font-family: "Archivo", system-ui, sans-serif; font-variation-settings: "wdth" 100;
+  line-height: 1.5;
+}
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+.wrap { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* masthead */
+header.top { padding: 28px 0 8px; }
+.brand { font-weight: 800; font-size: 1.1rem; letter-spacing: -0.01em; color: var(--ink); }
+.brand span { display: inline-block; background: var(--tag); color: var(--tag-ink);
+  padding: 0 6px; border-radius: 3px; margin-right: 2px; }
+
+/* ask */
+.ask { padding: 40px 0 28px; }
+h1 { font-size: clamp(2.2rem, 5.5vw, 3.6rem); line-height: 1.02; margin: 0 0 10px;
+  font-weight: 800; font-variation-settings: "wdth" 72; letter-spacing: -0.01em; max-width: 16ch; }
+.lede { color: var(--ink-2); max-width: 60ch; margin: 0 0 24px; }
+form.search { display: flex; gap: 0; max-width: 760px; background: var(--tag);
+  border-radius: 10px; padding: 6px; box-shadow: 0 1px 0 rgba(20,33,61,.15); }
+form.search input { flex: 1; min-width: 0; border: 0; background: #fff; color: #14213d;
+  font: inherit; font-size: 1rem; padding: 14px 14px; border-radius: 7px; }
+form.search button { border: 0; background: var(--tag-ink); color: #fff; font: inherit;
+  font-weight: 700; padding: 0 22px; border-radius: 7px; margin-left: 6px; cursor: pointer; }
+form.search button:disabled { opacity: .6; cursor: progress; }
+.hint { font-size: .85rem; color: var(--ink-3); margin: 10px 0 0; }
+.examples { margin-top: 28px; }
+.examples h2 { font-size: .95rem; font-weight: 600; margin: 0 0 10px; color: var(--ink-2); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--rule);
+  background: var(--sheet); color: var(--ink); border-radius: 999px; padding: 6px 12px;
+  font: inherit; font-size: .88rem; cursor: pointer; text-align: left; }
+.chip:hover { border-color: var(--ink-3); }
+.chip .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.chip.unavailable { color: var(--ink-3); }
+
+/* messages */
+.msg { max-width: 760px; margin: 0 0 20px; padding: 14px 16px; border-radius: 8px;
+  border: 1px solid var(--rule); background: var(--sheet); }
+.msg.error { border-color: var(--bad); }
+
+/* result sheet */
+.result { background: var(--sheet); border: 1px solid var(--rule); border-radius: 14px;
+  padding: 28px; margin: 8px 0 48px; }
+.result[hidden] { display: none; }
+.r-head { display: flex; justify-content: space-between; gap: 16px; align-items: baseline;
+  flex-wrap: wrap; }
+.r-name { font-size: 1.25rem; font-weight: 700; margin: 0; max-width: 46ch; }
+.r-sub { color: var(--ink-3); font-size: .88rem; margin: 2px 0 0; }
+.r-link { color: var(--ink); font-weight: 600; font-size: .92rem; }
+
+.verdict-row { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; margin: 22px 0 6px; }
+.price { font-size: clamp(3rem, 9vw, 5.4rem); line-height: .9; font-weight: 800;
+  font-variation-settings: "wdth" 62; letter-spacing: -0.01em; }
+.badge { display: inline-flex; align-items: center; gap: 8px; font-weight: 700;
+  font-size: 1.05rem; padding: 8px 14px 8px 10px; border-radius: 999px; border: 2px solid; }
+.badge svg { width: 20px; height: 20px; flex: none; }
+.badge.genuine_low { color: var(--good-text); border-color: var(--good); }
+.badge.inflated { color: var(--bad-text); border-color: var(--bad); }
+.badge.typical, .badge.unavailable, .badge.insufficient_history, .badge.no_data {
+  color: var(--ink-2); border-color: var(--neutral); }
+.headline { font-size: 1.15rem; max-width: 62ch; margin: 14px 0 0; }
+.headline.loading { color: var(--ink-3); }
+
+/* price ruler */
+.ruler { margin: 26px 0 8px; max-width: 760px; }
+.ruler svg { width: 100%; max-width: 760px; height: 86px; display: block; overflow: visible; }
+.ruler .caption { font-size: .85rem; color: var(--ink-3); margin-top: 4px; }
+
+/* chart */
+.chart-box { margin-top: 30px; position: relative; }
+.chart-box h3, .col h3 { font-size: 1rem; margin: 0 0 8px; }
+.chart-box svg { width: 100%; height: 260px; display: block; }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--paper);
+  font-size: .82rem; padding: 6px 9px; border-radius: 6px; white-space: nowrap;
+  transform: translate(-50%, -110%); opacity: 0; }
+.legend { font-size: .82rem; color: var(--ink-3); display: flex; gap: 18px; flex-wrap: wrap;
+  margin-top: 6px; }
+.legend i { display: inline-block; width: 18px; height: 10px; vertical-align: -1px; margin-right: 6px; }
+details.table { margin-top: 10px; font-size: .88rem; }
+details.table table { border-collapse: collapse; margin-top: 8px; }
+details.table td, details.table th { padding: 3px 14px 3px 0; text-align: left;
+  border-bottom: 1px solid var(--rule); }
+
+/* two columns */
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 36px; margin-top: 34px; }
+@media (max-width: 760px) { .cols { grid-template-columns: 1fr; gap: 26px; }
+  .result { padding: 20px; } }
+.col p { margin: 0 0 10px; max-width: 62ch; }
+ul.facts, ul.pc { margin: 0; padding: 0; list-style: none; }
+ul.facts li { padding: 7px 0; border-bottom: 1px solid var(--rule); color: var(--ink-2); }
+ul.pc li { padding: 6px 0 6px 26px; position: relative; }
+ul.pc li::before { position: absolute; left: 0; top: 6px; font-weight: 800; width: 18px;
+  text-align: center; }
+ul.pc.pros li::before { content: "+"; color: var(--good-text); }
+ul.pc.cons li::before { content: "\2212"; color: var(--bad-text); }
+.pc-label { font-weight: 600; margin: 14px 0 2px; }
+.bottom { margin-top: 26px; padding: 16px 18px; border-left: 4px solid var(--tag);
+  background: var(--paper); border-radius: 0 8px 8px 0; max-width: 72ch; }
+.cite { font: inherit; font-size: .78em; font-weight: 700; color: var(--series);
+  background: none; border: 0; padding: 0 1px; cursor: pointer; vertical-align: 1px; }
+.cite:hover { text-decoration: underline; }
+
+/* evidence */
+details.evidence { margin-top: 28px; }
+details.evidence summary { cursor: pointer; font-weight: 600; }
+.review { padding: 12px 0; border-bottom: 1px solid var(--rule); max-width: 78ch; scroll-margin-top: 20px; }
+.review.flash { background: var(--band); }
+.review b { font-weight: 700; }
+.review .meta { font-size: .82rem; color: var(--ink-3); }
+.review p { margin: 4px 0 0; color: var(--ink-2); }
+
+footer { color: var(--ink-3); font-size: .82rem; padding: 0 0 40px; max-width: 72ch; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<header class="top wrap"><div class="brand"><span>Deal</span>Sense</div></header>
+
+<main class="wrap">
+  <section class="ask">
+    <h1>Is this laptop's price actually good?</h1>
+    <p class="lede">Paste an Amazon laptop link. DealSense checks its real price history, tells you
+      whether today's price is low, normal, or inflated, and sums up what owners say.</p>
+    <form class="search" id="search">
+      <label for="q" class="sr" style="position:absolute;left:-9999px">Amazon link or product ID</label>
+      <input id="q" name="q" placeholder="https://www.amazon.com/dp/…" autocomplete="off" required>
+      <button id="go" type="submit">Check price</button>
+    </form>
+    <p class="hint">Works with any Amazon laptop link or its 10-character product ID.</p>
+    <div class="examples">
+      <h2>Or try one of our 15 test laptops</h2>
+      <div class="chips" id="chips"></div>
+    </div>
+  </section>
+
+  <div id="msg"></div>
+
+  <section class="result" id="result" hidden aria-live="polite">
+    <div class="r-head">
+      <div>
+        <h2 class="r-name" id="r-name"></h2>
+        <p class="r-sub" id="r-sub"></p>
+      </div>
+      <a class="r-link" id="r-link" target="_blank" rel="noopener">View on Amazon</a>
+    </div>
+    <div class="verdict-row">
+      <div class="price num" id="r-price"></div>
+      <div class="badge" id="r-badge"></div>
+    </div>
+    <p class="headline" id="r-headline"></p>
+
+    <div class="ruler" id="ruler"></div>
+
+    <div class="chart-box" id="chart-box">
+      <h3>Lowest new price, last 2 years</h3>
+      <svg id="chart" role="img" aria-label="Price history chart"></svg>
+      <div class="tip" id="tip"></div>
+      <div class="legend">
+        <span><i style="background:var(--series);height:3px;vertical-align:3px"></i>Lowest new price</span>
+        <span><i style="background:var(--band)"></i>Normal range (middle half of the last 180 days)</span>
+        <span><i style="border-top:2px dashed var(--median);height:0;vertical-align:3px"></i>180-day median</span>
+      </div>
+      <details class="table"><summary>Show the numbers as a table</summary><div id="table"></div></details>
+    </div>
+
+    <div class="cols">
+      <div class="col" id="facts-col">
+        <h3>Why this verdict</h3>
+        <p id="price-expl"></p>
+        <ul class="facts" id="facts"></ul>
+      </div>
+      <div class="col">
+        <h3>What owners say</h3>
+        <div id="owners"><p class="headline loading">Reading the reviews…</p></div>
+      </div>
+    </div>
+    <div class="bottom" id="bottom" hidden></div>
+
+    <details class="evidence" id="evidence" hidden>
+      <summary id="ev-sum">Reviews quoted above</summary>
+      <div id="reviews"></div>
+    </details>
+  </section>
+</main>
+
+<footer class="wrap">
+  Price history from Keepa (Amazon US, lowest new price from any seller). Reviews from the Amazon
+  Reviews 2023 dataset (McAuley Lab, UCSD), so they cover laptops sold through 2023. The verdict comes
+  from a statistical price model; Claude only writes the explanation, citing the evidence shown.
+</footer>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const money = (x) => x == null ? "–" : "$" + x.toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+const VERDICT = {
+  genuine_low: {label: "Genuine low", color: "var(--good)",
+    icon: '<path d="M20 6 9 17l-5-5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>'},
+  typical: {label: "Typical price", color: "var(--neutral)",
+    icon: '<path d="M5 12h14" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>'},
+  inflated: {label: "Inflated", color: "var(--bad)",
+    icon: '<path d="M12 19V5M5 12l7-7 7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>'},
+  unavailable: {label: "Not sold new right now", color: "var(--neutral)",
+    icon: '<circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M7 17 17 7" stroke="currentColor" stroke-width="2.5"/>'},
+  insufficient_history: {label: "Not enough history", color: "var(--neutral)",
+    icon: '<circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2.5"/>'},
+  no_data: {label: "No price data", color: "var(--neutral)",
+    icon: '<circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2.5"/>'},
+};
+
+async function api(path, opts) {
+  const res = await fetch(path, opts);
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.detail || `Something went wrong (error ${res.status}).`);
+  return body;
+}
+
+function showMsg(text, isError) {
+  $("msg").innerHTML = text ? `<div class="msg ${isError ? "error" : ""}">${esc(text)}</div>` : "";
+}
+
+/* ---------- example chips ---------- */
+async function loadChips() {
+  try {
+    const list = await api("/api/laptops");
+    $("chips").innerHTML = list.map(l => {
+      const v = VERDICT[l.verdict] || VERDICT.no_data;
+      const price = l.current_price ? money(l.current_price) : "not sold new";
+      return `<button class="chip ${l.verdict}" data-asin="${l.asin}" type="button">
+        <span class="dot" style="background:${v.color}" aria-hidden="true"></span>
+        ${esc(l.name)} <span class="num" style="color:var(--ink-3)">${price}</span>
+        <span class="sr" style="position:absolute;left:-9999px">${v.label}</span></button>`;
+    }).join("");
+    $("chips").querySelectorAll(".chip").forEach(b =>
+      b.addEventListener("click", () => run({asin: b.dataset.asin})));
+  } catch (e) { $("chips").textContent = "Couldn't load the test laptops: " + e.message; }
+}
+
+/* ---------- main flow: price first, write-up second ---------- */
+let current = 0;
+async function run({asin, query}) {
+  const ticket = ++current;
+  showMsg("");
+  $("go").disabled = true;
+  try {
+    const data = asin
+      ? await api(`/api/check/${asin}?writeup=false`)
+      : await api(`/api/lookup?writeup=false`, {method: "POST",
+          headers: {"Content-Type": "application/json"}, body: JSON.stringify({query})});
+    if (ticket !== current) return;
+    renderPrice(data);
+    $("result").scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
+    const full = await api(`/api/check/${data.asin}`);
+    if (ticket !== current) return;
+    renderWriteup(full);
+  } catch (e) {
+    if (ticket === current) showMsg(e.message, true);
+  } finally {
+    if (ticket === current) $("go").disabled = false;
+  }
+}
+
+$("search").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const q = $("q").value.trim();
+  if (q) run({query: q});
+});
+
+/* ---------- rendering ---------- */
+function renderPrice(d) {
+  const p = d.price, v = VERDICT[p.verdict] || VERDICT.no_data;
+  $("result").hidden = false;
+  $("r-name").textContent = d.name;
+  const reviews = d.review_count ? `${d.review_count.toLocaleString()} owner reviews in our data`
+                                 : "No owner reviews in our data";
+  $("r-sub").textContent = `${d.tier ? d.tier[0].toUpperCase() + d.tier.slice(1) + " laptop. " : ""}${reviews}. Price as of ${p.as_of}.`;
+  $("r-link").href = d.amazon_url;
+  $("r-price").textContent = p.current_price != null ? money(p.current_price) : "–";
+  const badge = $("r-badge");
+  badge.className = "badge " + p.verdict;
+  badge.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${v.icon}</svg>${v.label}`;
+  $("r-headline").className = "headline loading";
+  $("r-headline").textContent = "Writing the summary…";
+  $("price-expl").textContent = "";
+  $("facts").innerHTML = p.reasons.map(r => `<li class="num">${esc(r)}</li>`).join("");
+  $("owners").innerHTML = '<p class="headline loading">Reading the reviews…</p>';
+  $("bottom").hidden = true;
+  $("evidence").hidden = true;
+  drawRuler(p);
+  drawChart(d.chart, p);
+}
+
+function cites(text) {
+  return esc(text).replace(/\[(R\d+|P|L)\]/g, (_, id) =>
+    `<button class="cite" type="button" data-cite="${id}" aria-label="Source ${id}">[${id}]</button>`);
+}
+
+function renderWriteup(d) {
+  const w = d.writeup;
+  if (!w || w.error) {
+    $("r-headline").className = "headline";
+    $("r-headline").textContent = w && w.error ? "The written summary isn't available: " + w.error
+                                             : "No written summary for this laptop.";
+    $("owners").innerHTML = "";
+    return;
+  }
+  $("r-headline").className = "headline";
+  $("r-headline").innerHTML = cites(w.headline);
+  $("price-expl").innerHTML = cites(w.price_explanation || "");
+  const pros = w.pros || [], cons = w.cons || [];
+  $("owners").innerHTML = (pros.length || cons.length)
+    ? (pros.length ? `<p class="pc-label">Owners liked</p><ul class="pc pros">${pros.map(x => `<li>${cites(x)}</li>`).join("")}</ul>` : "")
+      + (cons.length ? `<p class="pc-label">Owners complained about</p><ul class="pc cons">${cons.map(x => `<li>${cites(x)}</li>`).join("")}</ul>` : "")
+    : `<p>We have no owner reviews for this laptop, so this check is based on price alone.</p>`;
+  if (w.bottom_line) { $("bottom").hidden = false; $("bottom").innerHTML = cites(w.bottom_line); }
+  const revs = d.reviews || [];
+  if (revs.length) {
+    $("evidence").hidden = false;
+    $("ev-sum").textContent = `The ${revs.length} reviews quoted above`;
+    $("reviews").innerHTML = revs.map(r => `<div class="review" id="rev-${r.id}">
+      <div class="meta">[${r.id}] ${"★".repeat(Math.round(r.rating))}${"☆".repeat(5 - Math.round(r.rating))}
+        ${r.rating}/5, ${r.date}${r.verified ? ", verified purchase" : ""}</div>
+      <b>${esc(r.title)}</b><p>${esc(r.text)}</p></div>`).join("");
+  }
+}
+
+document.addEventListener("click", (e) => {
+  const b = e.target.closest(".cite");
+  if (!b) return;
+  const id = b.dataset.cite;
+  let el;
+  if (id === "P" || id === "L") el = $("facts-col");
+  else { $("evidence").open = true; el = $("rev-" + id); }
+  if (!el) return;
+  el.scrollIntoView({block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
+  el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 1600);
+});
+
+/* ---------- the price ruler: where today sits in its usual range ---------- */
+function drawRuler(p) {
+  const box = $("ruler");
+  if (p.current_price == null || p.window_low == null) { box.innerHTML = ""; return; }
+  const W = Math.min(760, box.clientWidth || 760), lo = Math.min(p.window_low, p.current_price), hi = Math.max(p.window_high, p.current_price);
+  const pad = (hi - lo) * 0.06 || 10, a = lo - pad, b = hi + pad;
+  const x = (v) => 34 + (v - a) / (b - a) * (W - 68);   // margin keeps edge labels on screen
+  const y = 40;
+  const tick = (v, label, below) => `<line x1="${x(v)}" x2="${x(v)}" y1="${y - 8}" y2="${y + 8}" stroke="var(--ink-3)" stroke-width="1.5"/>
+    <text x="${x(v)}" y="${below ? y + 26 : y - 14}" text-anchor="middle" font-size="12" fill="var(--ink-3)" class="num">${label}</text>`;
+  const today = x(p.current_price);
+  box.innerHTML = `<svg viewBox="0 0 ${W} 86" role="img" aria-label="Today's price ${money(p.current_price)} compared with its usual range of ${money(p.p25)} to ${money(p.p75)}">
+    <line x1="${x(p.window_low)}" x2="${x(p.window_high)}" y1="${y}" y2="${y}" stroke="var(--rule)" stroke-width="10" stroke-linecap="round"/>
+    <line x1="${x(p.p25)}" x2="${x(p.p75)}" y1="${y}" y2="${y}" stroke="var(--series)" stroke-opacity=".35" stroke-width="10"/>
+    ${tick(p.window_low, "low " + money(p.window_low), true)}
+    ${tick(p.window_high, "high " + money(p.window_high), true)}
+    <line x1="${x(p.median)}" x2="${x(p.median)}" y1="${y - 12}" y2="${y + 12}" stroke="var(--ink)" stroke-width="2"/>
+    <text x="${x(p.median)}" y="${y - 18}" text-anchor="middle" font-size="12" fill="var(--ink-2)" class="num">median ${money(p.median)}</text>
+    <path d="M${today - 8} ${y + 30} L${today} ${y + 16} L${today + 8} ${y + 30} Z" fill="var(--ink)"/>
+    <text x="${today}" y="${y + 44}" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--ink)" class="num">today ${money(p.current_price)}</text>
+  </svg>
+  <div class="caption">Shaded: the middle half of its prices over the last ${p.window_days} days.</div>`;
+}
+
+/* ---------- 2-year chart with hover ---------- */
+function drawChart(points, p) {
+  const svg = $("chart"), tip = $("tip");
+  const W = svg.clientWidth || 900, H = 260, L = 58, R = 12, T = 12, B = 28;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  const pts = points.map(d => ({t: new Date(d.date + "T00:00:00").getTime(), v: d.price}));
+  const vals = pts.filter(d => d.v != null).map(d => d.v);
+  if (!vals.length) { svg.innerHTML = `<text x="${L}" y="40" fill="var(--ink-3)">No price history to show.</text>`; $("table").innerHTML = ""; return; }
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  if (p.p25 != null) { lo = Math.min(lo, p.p25); hi = Math.max(hi, p.p75); }
+  const pad = (hi - lo) * 0.08 || 20; lo = Math.max(0, lo - pad); hi += pad;
+  const t0 = pts[0].t, t1 = pts[pts.length - 1].t;
+  const x = (t) => L + (t - t0) / Math.max(1, t1 - t0) * (W - L - R);
+  const y = (v) => T + (hi - v) / (hi - lo) * (H - T - B);
+  // gridlines + y labels
+  const step = niceStep((hi - lo) / 4);
+  let grid = "";
+  for (let v = Math.ceil(lo / step) * step; v <= hi; v += step)
+    grid += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--rule)" stroke-width="1"/>
+      <text x="${L - 8}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="var(--ink-3)" class="num">$${v.toLocaleString()}</text>`;
+  // x labels: each January and July
+  let xl = "";
+  const d0 = new Date(t0);
+  for (let d = new Date(d0.getFullYear(), d0.getMonth() + 1, 1); d.getTime() <= t1; d.setMonth(d.getMonth() + 1)) {
+    if (d.getMonth() % 6 !== 0) continue;
+    xl += `<text x="${x(d.getTime())}" y="${H - 8}" text-anchor="middle" font-size="11" fill="var(--ink-3)">${d.toLocaleString("en-US", {month: "short"})} ${d.getFullYear()}</text>`;
+  }
+  // line with gaps where nobody sold it
+  let path = "", pen = false;
+  for (const d of pts) {
+    if (d.v == null) { pen = false; continue; }
+    path += (pen ? "L" : "M") + x(d.t).toFixed(1) + " " + y(d.v).toFixed(1);
+    pen = true;
+  }
+  // normal band for the last window
+  let band = "", med = "";
+  if (p.p25 != null) {
+    const bx = x(Math.max(t0, t1 - p.window_days * 864e5));
+    band = `<rect x="${bx}" y="${y(p.p75)}" width="${W - R - bx}" height="${Math.max(2, y(p.p25) - y(p.p75))}" fill="var(--band)"/>`;
+    med = `<line x1="${bx}" x2="${W - R}" y1="${y(p.median)}" y2="${y(p.median)}" stroke="var(--median)" stroke-width="1.5" stroke-dasharray="5 4"/>`;
+  }
+  svg.innerHTML = grid + band + med + xl +
+    `<path d="${path}" fill="none" stroke="var(--series)" stroke-width="2" stroke-linejoin="round"/>
+     <line id="xh" y1="${T}" y2="${H - B}" stroke="var(--ink-3)" stroke-width="1" opacity="0"/>
+     <circle id="xd" r="5" fill="var(--series)" stroke="var(--sheet)" stroke-width="2" opacity="0"/>
+     <rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="transparent" id="hit"/>`;
+  const hit = svg.querySelector("#hit"), xh = svg.querySelector("#xh"), xd = svg.querySelector("#xd");
+  const move = (clientX) => {
+    const r = svg.getBoundingClientRect(), sx = (clientX - r.left) * (W / r.width);
+    const t = t0 + (sx - L) / (W - L - R) * (t1 - t0);
+    let best = pts[0];
+    for (const d of pts) if (Math.abs(d.t - t) < Math.abs(best.t - t)) best = d;
+    xh.setAttribute("x1", x(best.t)); xh.setAttribute("x2", x(best.t)); xh.setAttribute("opacity", 1);
+    const label = new Date(best.t).toLocaleDateString("en-US", {month: "short", day: "numeric", year: "numeric"});
+    if (best.v != null) { xd.setAttribute("cx", x(best.t)); xd.setAttribute("cy", y(best.v)); xd.setAttribute("opacity", 1); }
+    else xd.setAttribute("opacity", 0);
+    tip.innerHTML = `${label}<br><b class="num">${best.v != null ? money(best.v) : "not sold new"}</b>`;
+    tip.style.left = (x(best.t) / W * r.width) + "px";
+    tip.style.top = ((best.v != null ? y(best.v) : T + 20) / H * r.height + 34) + "px";
+    tip.style.opacity = 1;
+  };
+  hit.addEventListener("mousemove", (e) => move(e.clientX));
+  hit.addEventListener("touchmove", (e) => { move(e.touches[0].clientX); e.preventDefault(); }, {passive: false});
+  hit.addEventListener("mouseleave", () => { tip.style.opacity = 0; xh.setAttribute("opacity", 0); xd.setAttribute("opacity", 0); });
+  // table view: monthly median
+  const months = {};
+  for (const d of pts) if (d.v != null) {
+    const k = new Date(d.t).toISOString().slice(0, 7);
+    (months[k] ||= []).push(d.v);
+  }
+  $("table").innerHTML = `<table class="num"><tr><th>Month</th><th>Median price</th><th>Low</th><th>High</th></tr>${
+    Object.entries(months).reverse().map(([k, v]) => { v.sort((a, b) => a - b);
+      return `<tr><td>${k}</td><td>${money(v[Math.floor(v.length / 2)])}</td><td>${money(v[0])}</td><td>${money(v[v.length - 1])}</td></tr>`; }).join("")}</table>`;
+}
+function niceStep(raw) {
+  const p = Math.pow(10, Math.floor(Math.log10(raw))), n = raw / p;
+  return (n < 1.5 ? 1 : n < 3 ? 2 : n < 7 ? 5 : 10) * p;
+}
+
+let resizeTimer;
+window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => {
+  if (!$("result").hidden && window.__last) { drawChart(window.__last.chart, window.__last.price);
+    drawRuler(window.__last.price); } }, 150); });
+const _render = renderPrice;
+renderPrice = (d) => { window.__last = d; _render(d); };
+
+loadChips();
+</script>
+</body>
+</html>

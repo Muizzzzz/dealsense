@@ -42,7 +42,7 @@ def main():
     per_product = {}
     no_regret, scored = Counter(), Counter()   # "would a lower price have come within 30 days?"
     savings = Counter()                        # sum of (typical next-30-day price - today) / today
-    for product in conn.execute("SELECT * FROM products"):
+    for product in conn.execute("SELECT * FROM products WHERE status IN ('live', 'sold_out')"):
         counts = Counter()
         days = daily_prices(conn, product["asin"])
         d = start

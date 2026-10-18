@@ -6,19 +6,19 @@ DB_PATH = Path(__file__).resolve().parent.parent / "dealsense.db"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS products (
-    parent_asin   TEXT PRIMARY KEY,   -- groups all variants; reviews are keyed by this
-    asin          TEXT,               -- buyable variant; what Keepa looks up
+    parent_asin   TEXT NOT NULL,      -- groups all variants; reviews are keyed by this
+    asin          TEXT PRIMARY KEY,   -- buyable variant; what Keepa looks up
     category      TEXT NOT NULL,      -- 'laptop' now; headphones/tvs later
     brand         TEXT,
     model         TEXT,
     price_tier    TEXT,               -- provisional until Keepa prices confirm it
     title         TEXT,
     review_count  INTEGER,
-    status        TEXT
+    status        TEXT                -- live / sold_out (test set) or lookup (pasted link)
 );
 CREATE TABLE IF NOT EXISTS reviews (
     id            INTEGER PRIMARY KEY,
-    parent_asin   TEXT NOT NULL REFERENCES products(parent_asin),
+    parent_asin   TEXT NOT NULL,
     asin          TEXT,
     rating        REAL,
     title         TEXT,
@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS reviews (
     verified      INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_reviews_parent ON reviews(parent_asin);
+CREATE INDEX IF NOT EXISTS idx_reviews_asin ON reviews(asin);
 CREATE TABLE IF NOT EXISTS price_history (
     asin          TEXT NOT NULL,
     ts            INTEGER NOT NULL,   -- milliseconds since 1970

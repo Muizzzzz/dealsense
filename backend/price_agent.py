@@ -165,7 +165,8 @@ if __name__ == "__main__":
         for line in r["reasons"]:
             print(f"  - {line}")
     else:
-        for product in conn.execute("SELECT * FROM products ORDER BY price_tier, model"):
+        for product in conn.execute("SELECT * FROM products WHERE status IN ('live', 'sold_out') "
+                                   "ORDER BY price_tier, model"):
             r = analyze(conn, product, as_of)
             price = money(r["current_price"]) if r.get("current_price") else "-"
             med = money(r["median"]) if r.get("median") else "-"
