@@ -1,8 +1,10 @@
 """Database layer: one SQLite file (dealsense.db) holding products, reviews, and price history."""
+import os
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).resolve().parent.parent / "dealsense.db"
+# DEALSENSE_DB lets the hosted server keep the database on its persistent disk
+DB_PATH = Path(os.environ.get("DEALSENSE_DB") or Path(__file__).resolve().parent.parent / "dealsense.db")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS products (

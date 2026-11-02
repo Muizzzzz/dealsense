@@ -14,15 +14,19 @@ Endpoints:
                                     question about one laptop when asin is given
 Add ?writeup=false to skip the Claude write-up (faster, free).
 """
+import asyncio
+import hmac
+import os
 from datetime import date, timedelta
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from backend.db import connect
+from backend.keepa import load_env
 from backend.lookup import LookupError_, lookup
 from backend.price_agent import analyze, daily_prices
 from backend.writeup import writeup
@@ -31,6 +35,20 @@ WEB = Path(__file__).resolve().parent.parent / "web"
 CHART_DAYS = 730
 
 app = FastAPI(title="Myrmech Explorer")
+
+load_env()
+PASSCODE = os.environ.get("APP_PASSCODE", "")   # unset = no passcode (local demo)
+
+
+@app.middleware("http")
+async def require_passcode(request: Request, call_next):
+    """Every /api/ call must carry the passcode, so strangers can't spend our API credit."""
+    if PASSCODE and request.url.path.startswith("/api/"):
+        given = request.headers.get("x-passcode", "")
+        if not hmac.compare_digest(given.encode(), PASSCODE.encode()):
+            await asyncio.sleep(1)              # slows down guessing
+            return JSONResponse({"detail": "Passcode required."}, status_code=401)
+    return await call_next(request)
 
 
 def chart(conn, asin):

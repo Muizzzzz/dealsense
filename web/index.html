@@ -123,6 +123,18 @@ form.search button:disabled { opacity: .6; cursor: progress; }
 .msg { max-width: 760px; margin: 0 0 20px; padding: 14px 16px; border-radius: 8px;
   border: 1px solid var(--rule); background: var(--sheet); }
 .msg.error { border-color: var(--bad); }
+.gate { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center;
+  background: rgba(10, 12, 16, .82); padding: 16px; }
+.gate[hidden] { display: none; }
+.gate form { width: min(360px, 100%); background: var(--sheet); border: 1px solid var(--rule);
+  border-radius: 12px; padding: 22px; }
+.gate h2 { margin: 0 0 6px; font-size: 1.1rem; }
+.gate p { margin: 0 0 14px; color: var(--ink-3); font-size: .9rem; }
+.gate input { width: 100%; box-sizing: border-box; font: inherit; color: var(--ink);
+  background: var(--raised); border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px; }
+.gate button { margin-top: 12px; width: 100%; font: inherit; font-weight: 600; color: #0d1117;
+  background: var(--accent); border: 0; border-radius: 8px; padding: 10px; cursor: pointer; }
+.gate .err { color: var(--bad-text); font-size: .85rem; min-height: 1.2em; margin: 8px 0 0; }
 
 /* result sheet */
 .result { background: var(--sheet); border: 1px solid var(--rule); border-radius: 14px;
@@ -317,8 +329,36 @@ const VERDICT = {
     icon: '<circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2.5"/>'},
 };
 
-async function api(path, opts) {
-  const res = await fetch(path, opts);
+/* ---------- passcode (only asked for when the server has one set) ---------- */
+let PASS = "";
+try { PASS = localStorage.getItem("mx-pass") || ""; } catch (e) {}
+let passPrompt = null;
+function askPasscode(wrong) {
+  if (passPrompt) return passPrompt;            // several calls can hit 401 at once
+  passPrompt = new Promise(resolve => {
+    const box = $("gate");
+    $("gate-err").textContent = wrong ? "That passcode didn't work. Try again." : "";
+    box.hidden = false;
+    $("gate-input").value = "";
+    $("gate-input").focus();
+    $("gate-form").onsubmit = e => {
+      e.preventDefault();
+      PASS = $("gate-input").value.trim();
+      try { localStorage.setItem("mx-pass", PASS); } catch (e) {}
+      box.hidden = true;
+      passPrompt = null;
+      resolve();
+    };
+  });
+  return passPrompt;
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, {...opts, headers: {...(opts.headers || {}), "X-Passcode": PASS}});
+  if (res.status === 401) {
+    await askPasscode(PASS !== "");
+    return api(path, opts);
+  }
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.detail || `Something went wrong (error ${res.status}).`);
   return body;
@@ -643,5 +683,14 @@ renderPrice = (d) => { _render(d); window.__last = d; };
 
 loadChips();
 </script>
+<div class="gate" id="gate" hidden>
+  <form id="gate-form">
+    <h2>Myrmech Explorer</h2>
+    <p>Enter the passcode to continue.</p>
+    <input id="gate-input" type="password" autocomplete="current-password" aria-label="Passcode" required>
+    <p class="err" id="gate-err" role="alert"></p>
+    <button type="submit">Continue</button>
+  </form>
+</div>
 </body>
 </html>
