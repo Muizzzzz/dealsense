@@ -16,3 +16,6 @@ venv/
 
 # One-off diagnostics
 check_macbooks.py
+
+# Upload bundle for the hosted server (contains the database)
+*.tgz
