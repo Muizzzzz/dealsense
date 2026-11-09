@@ -207,6 +207,14 @@ details.evidence summary { cursor: pointer; font-weight: 600; }
 .review b { font-weight: 700; }
 .review .meta { font-size: .82rem; color: var(--ink-3); }
 .review p { margin: 4px 0 0; color: var(--ink-2); }
+.src { display: inline-block; font-size: .72rem; font-weight: 600; letter-spacing: .02em;
+       padding: 1px 7px; border-radius: 999px; border: 1px solid var(--rule); color: var(--ink-2);
+       margin-right: 6px; vertical-align: 1px; }
+.src.bb { border-color: var(--accent); color: var(--accent); }
+.src.inc { border-style: dashed; }
+#bb-summary { padding: 12px 0; border-bottom: 1px solid var(--rule); max-width: 78ch;
+              color: var(--ink-2); scroll-margin-top: 20px; }
+#bb-summary.flash { background: var(--band); }
 
 footer { color: var(--ink-3); font-size: .82rem; padding: 0 0 40px; max-width: 72ch; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
@@ -297,6 +305,7 @@ footer { color: var(--ink-3); font-size: .82rem; padding: 0 0 40px; max-width: 7
 
     <details class="evidence" id="evidence" hidden>
       <summary id="ev-sum">Reviews quoted above</summary>
+      <div id="bb-summary"></div>
       <div id="reviews"></div>
     </details>
   </section>
@@ -304,8 +313,9 @@ footer { color: var(--ink-3); font-size: .82rem; padding: 0 0 40px; max-width: 7
 
 <footer class="wrap">
   Myrmech Explorer. Prices and live Amazon search from Keepa (Amazon US, lowest new price from any
-  seller). Owner reviews from the Amazon Reviews 2023 dataset (McAuley Lab, UCSD), so they cover laptops
-  sold through 2023. Verdicts come from a statistical price model; Claude only explains them and writes
+  seller). Owner reviews from Best Buy (current reviews of the same model, matched by its specs) and
+  from the Amazon Reviews 2023 dataset (McAuley Lab, UCSD) for laptops sold through 2023. Amazon no
+  longer shows review text to signed-out visitors, so current Amazon reviews aren't included. Verdicts come from a statistical price model; Claude only explains them and writes
   recommendations from the listings shown, citing its sources.
 </footer>
 
@@ -484,7 +494,7 @@ $("ask-one").addEventListener("submit", async (e) => {
       `<button class="cite" type="button" data-qa="${n}-${id}" aria-label="Review ${id}">[${id}]</button>`);
     box.querySelector(".working").outerHTML = `<div>${answer}</div>` + (revs.length ? `
       <details style="margin-top:8px"><summary class="r-sub" style="cursor:pointer">The ${revs.length} reviews this answer used</summary>
-      ${revs.map(v => `<div class="review" id="qa-${n}-${v.id}"><div class="meta">[${v.id}] ${v.rating}/5</div>
+      ${revs.map(v => `<div class="review" id="qa-${n}-${v.id}"><div class="meta">${srcTags(v)}[${v.id}] ${v.rating}/5${v.date ? ", " + esc(String(v.date)) : ""}</div>
         <b>${esc(v.title)}</b><p>${esc(v.text)}</p></div>`).join("")}</details>` : "");
   } catch (err) {
     box.querySelector(".working").outerHTML = `<div>${esc(err.message)}</div>`;
@@ -496,9 +506,8 @@ function renderPrice(d) {
   const p = d.price, v = VERDICT[p.verdict] || VERDICT.no_data;
   $("result").hidden = false;
   $("r-name").textContent = d.name;
-  const reviews = d.review_count ? `${d.review_count.toLocaleString()} owner reviews in our data`
-                                 : "No owner reviews in our data";
-  $("r-sub").textContent = `${d.tier ? d.tier[0].toUpperCase() + d.tier.slice(1) + " laptop. " : ""}${reviews}. Price as of ${p.as_of}.`;
+  $("r-sub").textContent = subLine(d, d.review_count
+    ? `${d.review_count.toLocaleString()} Amazon reviews from 2023` : "Looking for owner reviews");
   $("r-link").href = d.amazon_url;
   $("r-price").textContent = p.current_price != null ? money(p.current_price) : "–";
   const badge = $("r-badge");
@@ -517,12 +526,31 @@ function renderPrice(d) {
 }
 
 function cites(text) {
-  return esc(text).replace(/\[(R\d+|A\d+|P|L)\]/g, (_, id) =>
+  return esc(text).replace(/\[(R\d+|A\d+|P|L|B)\]/g, (_, id) =>
     `<button class="cite" type="button" data-cite="${id}" aria-label="Source ${id}">[${id}]</button>`);
+}
+
+function srcTags(r) {
+  if (!r.source) return "";
+  const bb = r.source === "Best Buy";
+  return `<span class="src${bb ? " bb" : ""}">${bb ? "Best Buy" : "Amazon, 2023"}</span>`
+       + (r.incentivized ? `<span class="src inc" title="The reviewer got a promotion or sweepstakes entry for writing this review">Incentivized</span>` : "");
+}
+
+function subLine(d, reviews) {
+  return `${d.tier ? d.tier[0].toUpperCase() + d.tier.slice(1) + " laptop. " : ""}${reviews}. Price as of ${d.price.as_of}.`;
+}
+
+function sourcesLine(d) {
+  const parts = [];
+  if (d.bestbuy) parts.push(`${d.bestbuy.total_reviews.toLocaleString()} current Best Buy reviews`);
+  if (d.review_count) parts.push(`${d.review_count.toLocaleString()} Amazon reviews from 2023`);
+  return parts.length ? parts.join(" and ") : "No owner reviews found";
 }
 
 function renderWriteup(d) {
   const w = d.writeup;
+  $("r-sub").textContent = subLine(d, sourcesLine(d));
   if (!w || w.error) {
     $("r-headline").className = "headline";
     $("r-headline").textContent = w && w.error ? "The written summary isn't available: " + w.error
@@ -537,17 +565,26 @@ function renderWriteup(d) {
   $("owners").innerHTML = (pros.length || cons.length)
     ? (pros.length ? `<p class="pc-label">Owners liked</p><ul class="pc pros">${pros.map(x => `<li>${cites(x)}</li>`).join("")}</ul>` : "")
       + (cons.length ? `<p class="pc-label">Owners complained about</p><ul class="pc cons">${cons.map(x => `<li>${cites(x)}</li>`).join("")}</ul>` : "")
-    : `<p>We have no owner reviews for this laptop, so this check is based on price alone.</p>`;
+    : `<p>We found no owner reviews for this laptop, so this check is based on price alone.</p>`;
   if (w.bottom_line) { $("bottom").hidden = false; $("bottom").innerHTML = cites(w.bottom_line); }
   const revs = d.reviews || [];
   if (revs.length) {
     $("evidence").hidden = false;
     $("ev-sum").textContent = `The ${revs.length} reviews quoted above`;
     $("reviews").innerHTML = revs.map(r => `<div class="review" id="rev-${r.id}">
-      <div class="meta">[${r.id}] ${"★".repeat(Math.round(r.rating))}${"☆".repeat(5 - Math.round(r.rating))}
-        ${r.rating}/5, ${r.date}${r.verified ? ", verified purchase" : ""}</div>
+      <div class="meta">${srcTags(r)}[${r.id}] ${"★".repeat(Math.round(r.rating))}${"☆".repeat(5 - Math.round(r.rating))}
+        ${r.rating}/5, ${esc(String(r.date || ""))}${r.verified ? ", verified purchase" : ""}</div>
       <b>${esc(r.title)}</b><p>${esc(r.text)}</p></div>`).join("");
+  } else {
+    $("reviews").innerHTML = "";
   }
+  const bb = d.bestbuy;
+  $("bb-summary").innerHTML = bb ? `<span class="src bb">Best Buy</span>
+      [B] ${bb.total_reviews.toLocaleString()} reviews of this model at Best Buy, average ${bb.rating} out of 5.
+      ${bb.downloaded ? `Of the ${bb.downloaded} newest, ${bb.incentivized} were incentivized (written in exchange
+      for a promotion), so they may lean positive.` : ""}
+      <a href="${esc(bb.url)}" target="_blank" rel="noopener">See them on Best Buy</a>` : "";
+  if (bb && !revs.length) $("evidence").hidden = false;
 }
 
 document.addEventListener("click", (e) => {
@@ -565,6 +602,7 @@ document.addEventListener("click", (e) => {
   let el;
   if (id === "P" || id === "L") el = $("facts-col");
   else if (id[0] === "A") el = $("cand-" + id);
+  else if (id === "B") { $("evidence").open = true; el = $("bb-summary"); }
   else { $("evidence").open = true; el = $("rev-" + id); }
   if (!el) return;
   el.scrollIntoView({block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});

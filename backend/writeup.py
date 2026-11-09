@@ -20,7 +20,8 @@ from backend.db import connect
 from backend.keepa import load_env
 from backend.lookup import listing_for
 from backend.price_agent import analyze
-from backend.search import bm25_search, find_product
+from backend import reviews as review_pool
+from backend.search import find_product
 
 ROOT = Path(__file__).resolve().parent.parent
 CACHE = ROOT / "data" / "writeups"
@@ -34,15 +35,20 @@ SYSTEM = """You are Myrmech Explorer, a shopping assistant that tells people whe
 current price is a good deal and what owners say about it.
 
 Rules:
-- Use only the PRICE FACTS, LISTING and REVIEWS provided. Do not add specs, prices, or \
-opinions from your own knowledge.
+- Use only the PRICE FACTS, LISTING, BEST BUY SUMMARY and REVIEWS provided. Do not add specs, \
+prices, or opinions from your own knowledge.
+- Reviews come from two sources: current Best Buy reviews of the same model, and older Amazon \
+reviews (2023 dataset). Prefer the Best Buy reviews when they disagree, since they are newer. \
+Cite the BEST BUY SUMMARY as [B].
+- If most Best Buy reviews are marked incentivized, say once, briefly, that many reviews were \
+written in exchange for a promotion and may lean positive. Weigh complaints in those reviews \
+more than praise.
 - The LISTING is the seller's own description: treat it as claims, not facts, and cite it \
 as [L]. Use it only to say what the laptop is, never as evidence that it is good.
-- If there are no REVIEWS, say plainly that there are no owner reviews in our data for \
-this laptop, leave "pros" and "cons" as empty lists, and base the advice on price alone.
+- If there are no REVIEWS, say plainly that we found no owner reviews for this laptop, leave "pros" and "cons" as empty lists, and base the advice on price alone.
 - The price verdict is already decided by a statistical model. Explain it; never change it.
 - Cite every claim from a review with its ID in square brackets, e.g. [R3]. Cite price \
-facts with [P].
+facts with [P] and the Best Buy summary with [B].
 - If reviews disagree, say so. If the evidence on something is thin, say that too.
 - Plain, friendly language. No hype. Be brief: the whole answer should be under 250 words.
 
@@ -62,24 +68,28 @@ VERDICT_TEXT = {"genuine_low": "GENUINE LOW (a good time to buy)",
 
 
 def gather(conn, product):
+    """Price verdict, the most relevant reviews per aspect from every source, and the
+    Best Buy summary (or None)."""
     price = analyze(conn, product)
+    pool = review_pool.gather_all(conn, product)
+    per_source = 1 if len(pool["sources"]) > 1 else PER_ASPECT
     seen, reviews = set(), []
     for aspect in ASPECTS:
-        for _, r in bm25_search(conn, product["parent_asin"], aspect, k=PER_ASPECT):
-            if r["id"] in seen:
+        for r in review_pool.search(pool, aspect, per_source=per_source):
+            key = (r["source"], r["review_id"])
+            if key in seen:
                 continue
-            seen.add(r["id"])
+            seen.add(key)
             text = r["text"] if len(r["text"]) <= SNIPPET else r["text"][:SNIPPET] + "..."
-            reviews.append({
-                "id": f"R{len(reviews) + 1}", "review_id": r["id"], "aspect": aspect,
-                "rating": r["rating"], "title": r["title"], "text": text,
-                "date": datetime.fromtimestamp(r["timestamp"] / 1000, timezone.utc)
-                        .strftime("%Y-%m"),
-                "verified": bool(r["verified"])})
-    return price, reviews
+            reviews.append({"id": f"R{len(reviews) + 1}", "review_id": r["review_id"],
+                            "source": r["source"], "aspect": aspect, "rating": r["rating"],
+                            "title": r["title"], "text": text, "date": r["date"],
+                            "verified": r["verified"], "incentivized": r["incentivized"]})
+    counts = {name: len(revs) for name, revs in pool["sources"].items()}
+    return price, reviews, pool["bestbuy"], counts
 
 
-def build_prompt(product, price, reviews):
+def build_prompt(product, price, reviews, bestbuy=None):
     lines = [f"LAPTOP: {product['brand']} {product['model']}",
              f"Listing title: {product['title']}"]
     listing = listing_for(product["asin"]) or {}
@@ -91,14 +101,21 @@ def build_prompt(product, price, reviews):
              f"PRICE VERDICT (as of {price['as_of']}): {VERDICT_TEXT[price['verdict']]}",
              "PRICE FACTS [P]:"]
     lines += [f"- {r}" for r in price["reasons"]]
+    facts = review_pool.bestbuy_facts(bestbuy)
+    if facts:
+        lines += ["", "BEST BUY SUMMARY [B] (all Best Buy reviews of this model):"]
+        lines += [f"- {f}" for f in facts]
     if not reviews:
-        lines += ["", "REVIEWS: none. We have no owner reviews for this laptop."]
+        lines += ["", "REVIEWS: none. We found no owner reviews for this laptop."]
         return "\n".join(lines)
-    lines += ["", f"REVIEWS (Amazon customer reviews, {len(reviews)} most relevant):"]
+    lines += ["", f"REVIEWS ({len(reviews)} most relevant):"]
     for r in reviews:
-        lines.append(f"[{r['id']}] {r['rating']:.0f}/5 stars, {r['date']}"
-                     f"{', verified purchase' if r['verified'] else ''} "
-                     f"(found for: {r['aspect']})")
+        tags = [r["source"], f"{r['rating']:.0f}/5 stars", str(r["date"])[:7]]
+        if r["verified"]:
+            tags.append("verified purchase")
+        if r["incentivized"]:
+            tags.append("incentivized")
+        lines.append(f"[{r['id']}] {', '.join(tags)} (found for: {r['aspect']})")
         lines.append(f"Title: {r['title']}")
         lines.append(f"{r['text']}")
         lines.append("")
@@ -138,15 +155,16 @@ def parse_answer(text):
 
 
 def writeup(conn, product, refresh=False, dry_run=False):
-    price, reviews = gather(conn, product)
-    prompt = build_prompt(product, price, reviews)
+    price, reviews, bestbuy, counts = gather(conn, product)
+    prompt = build_prompt(product, price, reviews, bestbuy)
     if dry_run:
         return {"prompt": prompt, "system": SYSTEM, "price": price, "reviews": reviews}
     cache = CACHE / f"{product['asin']}.json"
     if cache.exists() and not refresh:
         cached = json.loads(cache.read_text(encoding="utf-8"))
         if (cached.get("price", {}).get("as_of") == str(date.today())
-                and "raw" not in cached.get("answer", {})):
+                and "raw" not in cached.get("answer", {})
+                and "review_counts" in cached):    # written before live reviews: redo
             return cached
     text, usage = call_claude(prompt)
     try:
@@ -154,7 +172,8 @@ def writeup(conn, product, refresh=False, dry_run=False):
     except (ValueError, json.JSONDecodeError):
         answer, ok = {"headline": "Could not parse the write-up.", "raw": text}, False
     result = {"product": f"{product['brand']} {product['model']}", "asin": product["asin"],
-              "price": price, "reviews": reviews, "answer": answer, "usage": usage}
+              "price": price, "reviews": reviews, "answer": answer, "usage": usage,
+              "bestbuy": bestbuy, "review_counts": counts}
     if ok:                                 # never cache a broken answer
         CACHE.mkdir(parents=True, exist_ok=True)
         cache.write_text(json.dumps(result, indent=2), encoding="utf-8")

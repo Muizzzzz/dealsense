@@ -72,12 +72,13 @@ def full_result(conn, product, with_writeup=True):
         "review_count": product["review_count"],
         "amazon_url": f"https://www.amazon.com/dp/{product['asin']}",
         "price": price, "chart": chart(conn, product["asin"]),
-        "writeup": None, "reviews": [],
+        "writeup": None, "reviews": [], "bestbuy": None, "review_counts": None,
     }
     if with_writeup:
         try:
             w = writeup(conn, product)
             result["writeup"], result["reviews"] = w.get("answer"), w.get("reviews", [])
+            result["bestbuy"], result["review_counts"] = w.get("bestbuy"), w.get("review_counts")
         except SystemExit as e:              # e.g. missing API key or API error
             result["writeup"] = {"error": str(e)}
     return result

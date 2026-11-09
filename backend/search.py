@@ -32,11 +32,10 @@ def find_product(conn, key):
                         "ORDER BY review_count DESC", (f"%{key}%", f"%{key}%")).fetchone()
 
 
-def bm25_search(conn, parent_asin, query, k=5, k1=1.5, b=0.75, min_words=15):
-    # skip one-liners ("Great battery life"): they match well but give the agent nothing to cite
-    reviews = [r for r in conn.execute("SELECT * FROM reviews WHERE parent_asin = ?",
-                                       (parent_asin,))
-               if len(r["text"].split()) >= min_words]
+def bm25_rank(reviews, query, k=5, k1=1.5, b=0.75, min_words=15):
+    """Rank any list of reviews (dicts or rows with 'title' and 'text') for a query.
+    Skips one-liners ("Great battery life"): they match well but give nothing to cite."""
+    reviews = [r for r in reviews if len((r["text"] or "").split()) >= min_words]
     docs = [tokenize(f"{r['title']} {r['text']}") for r in reviews]
     if not docs:
         return []
@@ -57,6 +56,12 @@ def bm25_search(conn, parent_asin, query, k=5, k1=1.5, b=0.75, min_words=15):
             scored.append((score, r))
     scored.sort(key=lambda x: -x[0])
     return scored[:k]
+
+
+def bm25_search(conn, parent_asin, query, k=5, k1=1.5, b=0.75, min_words=15):
+    """BM25 over one product's reviews in the 2023 dataset."""
+    rows = conn.execute("SELECT * FROM reviews WHERE parent_asin = ?", (parent_asin,)).fetchall()
+    return bm25_rank(rows, query, k, k1, b, min_words)
 
 
 if __name__ == "__main__":

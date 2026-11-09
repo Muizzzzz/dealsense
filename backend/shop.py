@@ -22,6 +22,7 @@ from backend import keepa
 from backend.db import connect
 from backend.lookup import current_price, is_laptop, listing_for, register
 from backend.price_agent import analyze
+from backend import reviews as review_pool
 from backend.search import bm25_search
 from backend.writeup import VERDICT_TEXT, call_claude, parse_answer
 
@@ -58,8 +59,11 @@ Return only JSON:
  "caveats": one sentence on what to double-check before buying, or ""}"""
 
 PRODUCT_QA = """You are Myrmech Explorer. Answer the shopper's question about ONE laptop using \
-only the PRICE FACTS [P], LISTING [L] and REVIEWS provided. Cite review claims with their IDs \
-([R2]). If the evidence doesn't answer the question, say so plainly. Under 150 words.
+only the PRICE FACTS [P], LISTING [L], BEST BUY SUMMARY [B] and REVIEWS provided. Cite review \
+claims with their IDs ([R2]). Reviews are either current Best Buy reviews or older Amazon \
+reviews (2023 dataset); prefer the newer ones when they disagree, and note it when the reviews \
+you rely on were incentivized. If the evidence doesn't answer the question, say so plainly. \
+Under 150 words.
 Return only JSON: {"answer": your answer, "confidence": "high" | "medium" | "low"}"""
 
 
@@ -70,9 +74,12 @@ def ask_product(conn, asin, question):
     if not product:
         return {"error": "Open a laptop first, then ask about it."}
     price = analyze(conn, product)
-    hits = bm25_search(conn, product["parent_asin"], question, k=8, min_words=8)
-    reviews = [{"id": f"R{i + 1}", "rating": r["rating"], "title": r["title"],
-                "text": r["text"][:700]} for i, (_, r) in enumerate(hits)]
+    pool = review_pool.gather_all(conn, product)
+    per_source = 4 if len(pool["sources"]) > 1 else 8
+    hits = review_pool.search(pool, question, per_source=per_source, min_words=8)
+    reviews = [{"id": f"R{i + 1}", "source": r["source"], "rating": r["rating"],
+                "title": r["title"], "text": r["text"][:700], "date": r["date"],
+                "incentivized": r["incentivized"]} for i, r in enumerate(hits)]
     listing = listing_for(asin) or {}
     lines = [f"LAPTOP: {product['brand']} {product['model']}",
              f"QUESTION: {question}", "",
@@ -81,10 +88,14 @@ def ask_product(conn, asin, question):
     feats = [f for f in (listing.get("features") or []) if f][:6]
     if feats:
         lines += ["", "LISTING [L]:"] + [f"- {f[:200]}" for f in feats]
+    facts = review_pool.bestbuy_facts(pool["bestbuy"])
+    if facts:
+        lines += ["", "BEST BUY SUMMARY [B]:"] + [f"- {f}" for f in facts]
     lines += ["", f"REVIEWS ({len(reviews)} most relevant to the question):" if reviews
               else "REVIEWS: none found for this question."]
     for r in reviews:
-        lines += [f"[{r['id']}] {r['rating']:.0f}/5. {r['title']}: {r['text']}"]
+        tag = f"{r['source']}, {str(r['date'])[:7]}{', incentivized' if r['incentivized'] else ''}"
+        lines += [f"[{r['id']}] {r['rating']:.0f}/5 ({tag}). {r['title']}: {r['text']}"]
     text, usage = call_claude("\n".join(lines), system=PRODUCT_QA, max_tokens=1200)
     try:
         answer = parse_answer(text)
