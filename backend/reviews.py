@@ -14,6 +14,7 @@ from backend.search import bm25_rank
 
 DATASET = "Amazon 2023"
 BESTBUY = "Best Buy"
+MIN_BESTBUY_REVIEWS = 5     # fewer is too little to say anything about a product
 
 
 def dataset_reviews(conn, product):
@@ -33,7 +34,7 @@ def bestbuy(product):
     try:
         m = find_sku({"asin": product["asin"], "title": product["title"],
                       "brand": product["brand"], "category": product["category"]})["match"]
-        if not m or not m.get("review_count"):
+        if not m or (m.get("review_count") or 0) < MIN_BESTBUY_REVIEWS:
             return None, []
         d = bestbuy_reviews(m["sku"])
     except Exception as e:                      # Best Buy down or blocking: no live reviews
@@ -77,7 +78,8 @@ def bestbuy_facts(bb):
     """Plain-language facts about the Best Buy reviews, for the prompt ([B])."""
     if not bb:
         return []
-    dist = bb["distribution"] or {}
+    # star levels come back as text ("1") once the data has been saved as JSON
+    dist = {int(k): v for k, v in (bb["distribution"] or {}).items()}
     total = sum(dist.values()) or bb["total_reviews"] or 0
     facts = [f"Best Buy has {bb['total_reviews']} reviews for this model "
              f"(average {bb['rating']} out of 5)."]

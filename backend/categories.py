@@ -46,7 +46,8 @@ DEFAULT = "laptop"
 # test-set laptops already are; add others with  py -m backend.lookup <ASIN>
 FEATURED = {
     "laptop": ["B09HVC79PC", "B085B5SXLY", "B086KKKT15", "B08DDGJQDW", "B09JQKBQSB"],
-    "headphones": ["B0D1XD1ZV3"],          # AirPods Pro 2 (USB-C)
+    "headphones": ["B0D1XD1ZV3",          # AirPods Pro 2 (USB-C)
+                   "B0CZPGX972"],         # Beats Solo 4
 }
 
 
