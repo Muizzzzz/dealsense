@@ -109,7 +109,8 @@ form.search button:disabled { opacity: .6; cursor: progress; }
 @keyframes dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
 @media (prefers-reduced-motion: reduce) { .working::after { animation: none; content: "..."; } }
 
-/* ask about this laptop */
+/* ask about this product */
+.chip-label { margin: 10px 0 6px; font-size: .8rem; color: var(--ink-3); letter-spacing: .02em; }
 .ask-one { margin-top: 30px; max-width: 760px; }
 .ask-one form { display: flex; gap: 8px; }
 .ask-one input { flex: 1; min-width: 0; font: inherit; color: var(--ink); background: var(--raised);
@@ -228,7 +229,7 @@ footer { color: var(--ink-3); font-size: .82rem; padding: 0 0 40px; max-width: 7
     <h1>Find the right product at the right price.</h1>
     <p class="lede">Ask for what you need, or paste an Amazon product link. Myrmech Explorer searches
       Amazon, checks each product's real price history, tells you whether today's price is low, normal
-      or inflated, and sums up what owners say. We're starting with laptops.</p>
+      or inflated, and sums up what owners say. We cover laptops and headphones so far.</p>
     <form class="search" id="search">
       <label for="q" class="sr" style="position:absolute;left:-9999px">Ask a question or paste an Amazon product link</label>
       <input id="q" name="q" placeholder="Ask a question or paste an Amazon product link" autocomplete="off" required>
@@ -236,12 +237,12 @@ footer { color: var(--ink-3); font-size: .82rem; padding: 0 0 40px; max-width: 7
     </form>
     <div class="prompts" id="prompts">
       <button class="prompt" type="button">A laptop with an RTX 50-series card around $800</button>
-      <button class="prompt" type="button">A light laptop for college under $600</button>
-      <button class="prompt" type="button">Best MacBook deal right now</button>
+      <button class="prompt" type="button">Noise-cancelling headphones under $200</button>
+      <button class="prompt" type="button">Earbuds for running that stay in</button>
     </div>
     <div class="examples">
-      <h2>Or check one of these laptops</h2>
-      <div class="chips" id="chips"></div>
+      <h2>Or check one of these</h2>
+      <div id="chips"></div>
     </div>
   </section>
 
@@ -294,10 +295,10 @@ footer { color: var(--ink-3); font-size: .82rem; padding: 0 0 40px; max-width: 7
     <div class="bottom" id="bottom" hidden></div>
 
     <div class="ask-one">
-      <h3>Ask about this laptop</h3>
+      <h3 id="ask-one-h">Ask about this product</h3>
       <form id="ask-one">
-        <label for="q1" class="sr" style="position:absolute;left:-9999px">Your question about this laptop</label>
-        <input id="q1" placeholder="Is the battery good? Is it OK for gaming?" autocomplete="off" required>
+        <label for="q1" class="sr" style="position:absolute;left:-9999px">Your question about this product</label>
+        <input id="q1" placeholder="Is the battery good? Is it comfortable?" autocomplete="off" required>
         <button type="submit">Ask</button>
       </form>
       <div id="qa"></div>
@@ -313,7 +314,7 @@ footer { color: var(--ink-3); font-size: .82rem; padding: 0 0 40px; max-width: 7
 
 <footer class="wrap">
   Myrmech Explorer. Prices and live Amazon search from Keepa (Amazon US, lowest new price from any
-  seller). Owner reviews from Best Buy (current reviews of the same model, matched by its specs) and
+  seller). Owner reviews from Best Buy (current reviews of the same model) and
   from the Amazon Reviews 2023 dataset (McAuley Lab, UCSD) for laptops sold through 2023. Amazon no
   longer shows review text to signed-out visitors, so current Amazon reviews aren't included. Verdicts come from a statistical price model; Claude only explains them and writes
   recommendations from the listings shown, citing its sources.
@@ -381,21 +382,19 @@ function showMsg(text, isError) {
 /* ---------- example chips ---------- */
 async function loadChips() {
   try {
-    // five examples that cover each price tier and verdict; the full test set stays in the API
-    const FEATURED = ["B09HVC79PC", "B085B5SXLY", "B086KKKT15", "B08DDGJQDW", "B09JQKBQSB"];
-    const list = (await api("/api/laptops")).filter(l => FEATURED.includes(l.asin))
-      .sort((a, b) => FEATURED.indexOf(a.asin) - FEATURED.indexOf(b.asin));
-    $("chips").innerHTML = list.map(l => {
-      const v = VERDICT[l.verdict] || VERDICT.no_data;
-      const price = l.current_price ? money(l.current_price) : "not sold new";
-      return `<button class="chip ${l.verdict}" data-asin="${l.asin}" type="button">
-        <span class="dot" style="background:${v.color}" aria-hidden="true"></span>
-        ${esc(l.name)} <span class="num" style="color:var(--ink-3)">${price}</span>
-        <span class="sr" style="position:absolute;left:-9999px">${v.label}</span></button>`;
-    }).join("");
+    const groups = await api("/api/examples");
+    $("chips").innerHTML = groups.map(g => `<p class="chip-label">${esc(g.label)}</p>
+      <div class="chips">${g.items.map(l => {
+        const v = VERDICT[l.verdict] || VERDICT.no_data;
+        const price = l.current_price ? money(l.current_price) : "not sold new";
+        return `<button class="chip ${l.verdict}" data-asin="${l.asin}" type="button">
+          <span class="dot" style="background:${v.color}" aria-hidden="true"></span>
+          ${esc(l.name)} <span class="num" style="color:var(--ink-3)">${price}</span>
+          <span class="sr" style="position:absolute;left:-9999px">${v.label}</span></button>`;
+      }).join("")}</div>`).join("");
     $("chips").querySelectorAll(".chip").forEach(b =>
       b.addEventListener("click", () => run({asin: b.dataset.asin})));
-  } catch (e) { $("chips").textContent = "Couldn't load the test laptops: " + e.message; }
+  } catch (e) { $("chips").textContent = "Couldn't load the examples: " + e.message; }
 }
 
 /* ---------- main flow: price first, write-up second ---------- */
@@ -444,7 +443,7 @@ async function askShopping(question) {
   $("go").disabled = true;
   $("shop").hidden = false;
   $("shop-q").textContent = "You asked: " + question;
-  $("shop-body").innerHTML = '<p class="working">Searching Amazon and checking each laptop\'s price history (about 15 seconds)</p>';
+  $("shop-body").innerHTML = '<p class="working">Searching Amazon and checking each product\'s price history (about 15 seconds)</p>';
   $("shop").scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
   try {
     const r = await api("/api/ask", {method: "POST", headers: {"Content-Type": "application/json"},
@@ -457,7 +456,7 @@ async function askShopping(question) {
       html += `<ul class="picks">${a.picks.map(p => `<li>${cites(p.why)}</li>`).join("")}</ul>`;
     if (a.caveats) html += `<p class="r-sub" style="margin:-8px 0 20px">${cites(a.caveats)}</p>`;
     if ((r.candidates || []).length) {
-      html += `<h3 style="font-size:1rem;margin:0 0 4px">Laptops found on Amazon just now</h3><div class="cands">` +
+      html += `<h3 style="font-size:1rem;margin:0 0 4px">Found on Amazon just now</h3><div class="cands">` +
         r.candidates.map(c => `<div class="cand" id="cand-${c.id}">
           <span class="id">${c.id}</span>
           <span class="nm">${esc(c.name)}<small>${c.review_count ? c.review_count.toLocaleString() + " owner reviews in our data" : "No owner reviews in our data yet"}${c.median ? ". Usual price " + money(c.median) : ""}</small></span>
@@ -475,7 +474,7 @@ async function askShopping(question) {
   }
 }
 
-/* ---------- questions about the open laptop ---------- */
+/* ---------- questions about the open product ---------- */
 let qaCount = 0;
 $("ask-one").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -503,6 +502,8 @@ $("ask-one").addEventListener("submit", async (e) => {
 
 /* ---------- rendering ---------- */
 function renderPrice(d) {
+  $("ask-one-h").textContent = d.noun === "headphones" ? "Ask about these headphones"
+                             : `Ask about this ${d.noun || "product"}`;
   const p = d.price, v = VERDICT[p.verdict] || VERDICT.no_data;
   $("result").hidden = false;
   $("r-name").textContent = d.name;
@@ -538,7 +539,8 @@ function srcTags(r) {
 }
 
 function subLine(d, reviews) {
-  return `${d.tier ? d.tier[0].toUpperCase() + d.tier.slice(1) + " laptop. " : ""}${reviews}. Price as of ${d.price.as_of}.`;
+  const noun = d.noun || "product";
+  return `${d.tier ? d.tier[0].toUpperCase() + d.tier.slice(1) + " " + noun + ". " : ""}${reviews}. Price as of ${d.price.as_of}.`;
 }
 
 function sourcesLine(d) {
@@ -554,7 +556,7 @@ function renderWriteup(d) {
   if (!w || w.error) {
     $("r-headline").className = "headline";
     $("r-headline").textContent = w && w.error ? "The written summary isn't available: " + w.error
-                                             : "No written summary for this laptop.";
+                                             : "No written summary for this product.";
     $("owners").innerHTML = "";
     return;
   }
@@ -565,7 +567,7 @@ function renderWriteup(d) {
   $("owners").innerHTML = (pros.length || cons.length)
     ? (pros.length ? `<p class="pc-label">Owners liked</p><ul class="pc pros">${pros.map(x => `<li>${cites(x)}</li>`).join("")}</ul>` : "")
       + (cons.length ? `<p class="pc-label">Owners complained about</p><ul class="pc cons">${cons.map(x => `<li>${cites(x)}</li>`).join("")}</ul>` : "")
-    : `<p>We found no owner reviews for this laptop, so this check is based on price alone.</p>`;
+    : `<p>We found no owner reviews for this product, so this check is based on price alone.</p>`;
   if (w.bottom_line) { $("bottom").hidden = false; $("bottom").innerHTML = cites(w.bottom_line); }
   const revs = d.reviews || [];
   if (revs.length) {

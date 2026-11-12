@@ -1,8 +1,8 @@
-"""Paste-a-link mode: check any Amazon laptop by link or ASIN.
+"""Paste-a-link mode: check any Amazon laptop or pair of headphones by link or ASIN.
 
-Steps: link -> ASIN -> Keepa product (live price history + listing details) -> laptop check ->
-match to our 2023 reviews (by ASIN, parent listing, or any variant) -> stored as a product
-so the price agent and write-up work on it like any test-set laptop.
+Steps: link -> ASIN -> Keepa product (live price history + listing details) -> category check
+(backend/categories.py) -> match to our 2023 reviews (by ASIN, parent listing, or any variant)
+-> stored as a product so the price agent and write-up work on it like any test-set laptop.
 
 Usage, from the Dealsense folder:
     py -m backend.lookup "https://www.amazon.com/dp/B086KKKT15"
@@ -19,17 +19,17 @@ from pathlib import Path
 
 from backend import keepa
 from backend.db import connect
+from backend.categories import category_of, covered, tier_for
 from backend.prices import store
 
 LIVE_DIR = Path(__file__).resolve().parent.parent / "data" / "keepa_live"
 FRESH_HOURS = 6
 ASIN_IN_URL = re.compile(r"/(?:dp|gp/product|gp/aw/d|product|d)/([A-Z0-9]{10})(?=[/?&#]|$)", re.I)
 BARE_ASIN = re.compile(r"^[A-Z0-9]{10}$", re.I)
-LAPTOP_WORDS = re.compile(r"\b(laptop|notebook|macbook|chromebook|ultrabook)\b", re.I)
 
 
 class LookupError_(Exception):
-    """A problem the user should see (bad link, not a laptop, unknown product)."""
+    """A problem the user should see (bad link, unsupported product, unknown product)."""
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -87,11 +87,7 @@ def listing_for(asin):
 
 
 def is_laptop(p):
-    tree = [c.get("name", "") for c in (p.get("categoryTree") or [])]
-    if tree:
-        return any("Laptop" in n for n in tree) and not any("Accessor" in n and n !=
-                                                             "Computers & Accessories" for n in tree)
-    return bool(LAPTOP_WORDS.search(p.get("title") or ""))
+    return category_of(p) == "laptop"
 
 
 def match_reviews(conn, p):
@@ -106,12 +102,6 @@ def match_reviews(conn, p):
     return (row["parent_asin"], row["n"]) if row else (None, 0)
 
 
-def tier_for(price):
-    if price is None:
-        return ""
-    return "budget" if price < 500 else "mid-range" if price < 1000 else "premium"
-
-
 def current_price(p):
     for idx in (1, 0):                       # lowest new, then Amazon
         s = (p.get("csv") or [None, None])[idx] or []
@@ -123,14 +113,18 @@ def current_price(p):
 def lookup(conn, text):
     asin = resolve_asin(text)
     p = fetch_product(asin)
-    if not is_laptop(p):
-        raise LookupError_(f"That looks like \"{(p.get('title') or '')[:80]}\", which isn't a "
-                           "laptop. Myrmech Explorer only covers laptops for now.")
+    if not category_of(p):
+        raise LookupError_(f"That looks like \"{(p.get('title') or '')[:80]}\". Myrmech Explorer "
+                           f"only covers {covered()} for now.")
     return register(conn, p)
 
 
 def short_title(title, limit=64):
-    """Amazon titles are long; cut at a word boundary and drop trailing punctuation."""
+    """Amazon titles are long: keep the part before the first comma or '|' when it's a
+    reasonable name, else cut at a word boundary and drop trailing punctuation."""
+    head = re.split(r",|\|", title)[0].strip()
+    if 12 <= len(head) <= limit:
+        return head
     if len(title) <= limit:
         return title
     return title[:limit].rsplit(" ", 1)[0].rstrip(",;:|-– ")
@@ -147,8 +141,8 @@ def register(conn, p):
     parent, n_reviews = match_reviews(conn, p)
     title = p.get("title") or ""
     conn.execute("INSERT OR REPLACE INTO products VALUES (?,?,?,?,?,?,?,?,?)", (
-        parent or asin, asin, "laptop", p.get("brand") or "", short_title(title),
-        tier_for(current_price(p)), title, n_reviews, "lookup"))
+        parent or asin, asin, category_of(p) or "laptop", p.get("brand") or "", short_title(title),
+        tier_for(current_price(p), category_of(p)), title, n_reviews, "lookup"))
     conn.commit()
     return conn.execute("SELECT * FROM products WHERE asin = ?", (asin,)).fetchone()
 

@@ -20,19 +20,18 @@ from backend.db import connect
 from backend.keepa import load_env
 from backend.lookup import listing_for
 from backend.price_agent import analyze
+from backend import categories
 from backend import reviews as review_pool
 from backend.search import find_product
 
 ROOT = Path(__file__).resolve().parent.parent
 CACHE = ROOT / "data" / "writeups"
 MODEL = "claude-sonnet-5-5"     # override with DEALSENSE_MODEL in .env
-ASPECTS = ["battery life", "performance speed", "screen display", "build quality",
-           "keyboard trackpad", "heat fan noise", "problem defect stopped working return"]
 PER_ASPECT = 2
 SNIPPET = 600
 
-SYSTEM = """You are Myrmech Explorer, a shopping assistant that tells people whether a laptop's \
-current price is a good deal and what owners say about it.
+SYSTEM = """You are Myrmech Explorer, a shopping assistant that tells people whether a product's \
+current price is a good deal and what owners say about it. It covers laptops and headphones.
 
 Rules:
 - Use only the PRICE FACTS, LISTING, BEST BUY SUMMARY and REVIEWS provided. Do not add specs, \
@@ -44,8 +43,8 @@ Cite the BEST BUY SUMMARY as [B].
 written in exchange for a promotion and may lean positive. Weigh complaints in those reviews \
 more than praise.
 - The LISTING is the seller's own description: treat it as claims, not facts, and cite it \
-as [L]. Use it only to say what the laptop is, never as evidence that it is good.
-- If there are no REVIEWS, say plainly that we found no owner reviews for this laptop, leave "pros" and "cons" as empty lists, and base the advice on price alone.
+as [L]. Use it only to say what the product is, never as evidence that it is good.
+- If there are no REVIEWS, say plainly that we found no owner reviews for this product, leave "pros" and "cons" as empty lists, and base the advice on price alone.
 - The price verdict is already decided by a statistical model. Explain it; never change it.
 - Cite every claim from a review with its ID in square brackets, e.g. [R3]. Cite price \
 facts with [P] and the Best Buy summary with [B].
@@ -60,7 +59,7 @@ Return only JSON, with exactly these keys:
  "bottom_line": 1-2 sentences of advice: buy now, wait, or look elsewhere}"""
 
 VERDICT_TEXT = {"genuine_low": "GENUINE LOW (a good time to buy)",
-                "typical": "TYPICAL (a normal price for this laptop)",
+                "typical": "TYPICAL (a normal price for this product)",
                 "inflated": "INFLATED (above its usual price)",
                 "unavailable": "UNAVAILABLE (nobody is selling it new right now)",
                 "insufficient_history": "NOT ENOUGH PRICE HISTORY",
@@ -74,7 +73,7 @@ def gather(conn, product):
     pool = review_pool.gather_all(conn, product)
     per_source = 1 if len(pool["sources"]) > 1 else PER_ASPECT
     seen, reviews = set(), []
-    for aspect in ASPECTS:
+    for aspect in categories.get(product["category"])["aspects"]:
         for r in review_pool.search(pool, aspect, per_source=per_source):
             key = (r["source"], r["review_id"])
             if key in seen:
@@ -90,7 +89,8 @@ def gather(conn, product):
 
 
 def build_prompt(product, price, reviews, bestbuy=None):
-    lines = [f"LAPTOP: {product['brand']} {product['model']}",
+    noun = categories.get(product["category"])["noun"].upper()
+    lines = [f"{noun}: {product['brand']} {product['model']}",
              f"Listing title: {product['title']}"]
     listing = listing_for(product["asin"]) or {}
     features = [f for f in (listing.get("features") or []) if f][:6]
@@ -106,7 +106,7 @@ def build_prompt(product, price, reviews, bestbuy=None):
         lines += ["", "BEST BUY SUMMARY [B] (all Best Buy reviews of this model):"]
         lines += [f"- {f}" for f in facts]
     if not reviews:
-        lines += ["", "REVIEWS: none. We found no owner reviews for this laptop."]
+        lines += ["", "REVIEWS: none. We found no owner reviews for this product."]
         return "\n".join(lines)
     lines += ["", f"REVIEWS ({len(reviews)} most relevant):"]
     for r in reviews:

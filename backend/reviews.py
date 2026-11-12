@@ -1,4 +1,4 @@
-"""All owner reviews we have for one laptop, from every source, in one shape.
+"""All owner reviews we have for one product, from every source, in one shape.
 
 Sources:
 - "Amazon 2023": the Amazon Reviews 2023 dataset in dealsense.db (older laptops).
@@ -32,7 +32,7 @@ def bestbuy(product):
     from backend.reviews_live import bestbuy_reviews
     try:
         m = find_sku({"asin": product["asin"], "title": product["title"],
-                      "brand": product["brand"]})["match"]
+                      "brand": product["brand"], "category": product["category"]})["match"]
         if not m or not m.get("review_count"):
             return None, []
         d = bestbuy_reviews(m["sku"])

@@ -6,12 +6,14 @@ Run, from the Dealsense folder:
 then open http://127.0.0.1:8000
 
 Endpoints:
-    GET  /api/laptops               the test set with today's verdicts (fast, no Claude)
-    GET  /api/check/{asin}          full result for a laptop already in the database
-    POST /api/lookup  {"query": …}  any Amazon laptop link or ASIN (1 Keepa token if new)
+    GET  /api/examples              home-page examples with today's verdicts (fast, no Claude)
+    GET  /api/laptops               the laptop test set with today's verdicts
+    GET  /api/check/{asin}          full result for a product already in the database
+    POST /api/lookup  {"query": …}  any Amazon laptop or headphones link or ASIN
+                                    (1 Keepa token if new)
     POST /api/ask     {"question": …, "asin": optional}
                                     shopping question (Keepa search, ~10-20 tokens), or a
-                                    question about one laptop when asin is given
+                                    question about one product when asin is given
 Add ?writeup=false to skip the Claude write-up (faster, free).
 """
 import asyncio
@@ -25,6 +27,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from backend import categories
 from backend.db import connect
 from backend.keepa import load_env
 from backend.lookup import LookupError_, lookup
@@ -69,6 +72,7 @@ def full_result(conn, product, with_writeup=True):
     result = {
         "asin": product["asin"], "name": display_name(product),
         "title": product["title"], "tier": product["price_tier"], "status": product["status"],
+        "category": product["category"], "noun": categories.get(product["category"])["noun"],
         "review_count": product["review_count"],
         "amazon_url": f"https://www.amazon.com/dp/{product['asin']}",
         "price": price, "chart": chart(conn, product["asin"]),
@@ -84,18 +88,35 @@ def full_result(conn, product, with_writeup=True):
     return result
 
 
+def summary_row(conn, p):
+    r = analyze(conn, p)
+    return {"asin": p["asin"], "name": display_name(p), "category": p["category"],
+            "tier": p["price_tier"], "status": p["status"], "verdict": r["verdict"],
+            "current_price": r.get("current_price"), "median": r.get("median"),
+            "review_count": p["review_count"]}
+
+
 @app.get("/api/laptops")
 def laptops():
     conn = connect()
+    return [summary_row(conn, p) for p in conn.execute(
+        "SELECT * FROM products WHERE status IN ('live', 'sold_out') "
+        "ORDER BY CASE price_tier WHEN 'budget' THEN 0 WHEN 'mid-range' "
+        "THEN 1 ELSE 2 END, model")]
+
+
+@app.get("/api/examples")
+def examples():
+    """Home-page examples per category, skipping any not yet in the database."""
+    conn = connect()
     out = []
-    for p in conn.execute("SELECT * FROM products WHERE status IN ('live', 'sold_out') "
-                          "ORDER BY CASE price_tier WHEN 'budget' THEN 0 WHEN 'mid-range' "
-                          "THEN 1 ELSE 2 END, model"):
-        r = analyze(conn, p)
-        out.append({"asin": p["asin"], "name": display_name(p), "tier":
-                    p["price_tier"], "status": p["status"], "verdict": r["verdict"],
-                    "current_price": r.get("current_price"), "median": r.get("median"),
-                    "review_count": p["review_count"]})
+    for key, asins in categories.FEATURED.items():
+        rows = [conn.execute("SELECT * FROM products WHERE asin = ?", (a,)).fetchone()
+                for a in asins]
+        items = [summary_row(conn, p) for p in rows if p]
+        if items:
+            out.append({"category": key, "label": categories.get(key)["plural"].capitalize(),
+                        "items": items})
     return out
 
 
@@ -134,7 +155,7 @@ def ask_route(q: Ask):
     from backend.shop import ask_product, ask_shopping
     question = q.question.strip()
     if len(question) < 3:
-        raise HTTPException(400, "Type a question about laptops, e.g. "
+        raise HTTPException(400, "Type a shopping question, e.g. "
                                  "\"a light laptop for college under $700\".")
     conn = connect()
     try:

@@ -1,11 +1,11 @@
 """Ask Myrmech Explorer a question.
 
 Two kinds of question:
-1. Shopping ("a good laptop with an RTX 50-series card around $800"):
+1. Shopping ("a good laptop with an RTX 50-series card around $800", "earbuds for running"):
    Claude turns the question into Amazon search terms + a price range + must-haves,
    Keepa searches Amazon live (10 tokens per search of 10 results), each match gets a
    price verdict, and Claude recommends from those real listings, citing them.
-2. About one laptop ("is the battery good?"): its most relevant reviews, price facts and
+2. About one product ("is the battery good?"): its most relevant reviews, price facts and
    listing go to Claude, which answers with citations.
 
 Usage, from the Dealsense folder:
@@ -18,9 +18,9 @@ import sys
 import time
 from pathlib import Path
 
-from backend import keepa
+from backend import categories, keepa
 from backend.db import connect
-from backend.lookup import current_price, is_laptop, listing_for, register
+from backend.lookup import current_price, listing_for, register
 from backend.price_agent import analyze
 from backend import reviews as review_pool
 from backend.search import bm25_search
@@ -31,24 +31,26 @@ CACHE_HOURS = 6
 MAX_TERMS = 2          # Keepa searches per question (10 tokens each)
 MAX_CANDIDATES = 8
 
-PLANNER = """You turn a shopper's question into an Amazon laptop search. Today's date is \
-{today}. Return only JSON:
-{{"is_laptop_question": true or false,
+PLANNER = """You turn a shopper's question into an Amazon product search. Today's date is \
+{today}. We cover these categories: {cats}. Return only JSON:
+{{"category": one of {keys}, or null if the question is about something else,
  "search_terms": up to 2 short Amazon search phrases, most specific first,
  "min_price": number or null, "max_price": number or null,
  "must_have": list of short regular expressions that a matching listing title must contain \
-(case-insensitive), e.g. "RTX ?50[5-9]0" for an NVIDIA RTX 50-series GPU; [] if none,
+(case-insensitive), e.g. "RTX ?50[5-9]0" for an NVIDIA RTX 50-series GPU or \
+"noise.?cancel|ANC" for noise cancelling; [] if none. Only use must_have for hard \
+requirements that sellers always put in the title,
  "summary": one sentence restating what they want}}
 If they give one target price ("around $800"), use a range of about -20% to +15%."""
 
-RECOMMENDER = """You are Myrmech Explorer, a laptop shopping assistant. Answer the shopper's \
+RECOMMENDER = """You are Myrmech Explorer, a shopping assistant for laptops and headphones. Answer the shopper's \
 question using only the CANDIDATES provided: real Amazon listings found just now, each with \
 its current price and a price verdict from a statistical model.
 
 Rules:
 - Recommend only from the candidates. Cite each one you mention as [A1], [A2], etc.
 - Never invent specs, prices or reviews. Listing details are the seller's claims; say so \
-when it matters. Owner reviews are rare for new laptops; use them only if given.
+when it matters. Owner reviews are rare for new products; use them only if given.
 - Respect the price verdicts: don't call an INFLATED price a good deal.
 - If nothing fits well, say so plainly and suggest what to change (budget, specs).
 - Be brief: under 200 words.
@@ -58,7 +60,7 @@ Return only JSON:
  "picks": list of up to 3 {"id": "A1", "why": one sentence, citing it},
  "caveats": one sentence on what to double-check before buying, or ""}"""
 
-PRODUCT_QA = """You are Myrmech Explorer. Answer the shopper's question about ONE laptop using \
+PRODUCT_QA = """You are Myrmech Explorer. Answer the shopper's question about ONE product using \
 only the PRICE FACTS [P], LISTING [L], BEST BUY SUMMARY [B] and REVIEWS provided. Cite review \
 claims with their IDs ([R2]). Reviews are either current Best Buy reviews or older Amazon \
 reviews (2023 dataset); prefer the newer ones when they disagree, and note it when the reviews \
@@ -72,7 +74,7 @@ Return only JSON: {"answer": your answer, "confidence": "high" | "medium" | "low
 def ask_product(conn, asin, question):
     product = conn.execute("SELECT * FROM products WHERE asin = ?", (asin,)).fetchone()
     if not product:
-        return {"error": "Open a laptop first, then ask about it."}
+        return {"error": "Open a product first, then ask about it."}
     price = analyze(conn, product)
     pool = review_pool.gather_all(conn, product)
     per_source = 4 if len(pool["sources"]) > 1 else 8
@@ -81,7 +83,8 @@ def ask_product(conn, asin, question):
                 "title": r["title"], "text": r["text"][:700], "date": r["date"],
                 "incentivized": r["incentivized"]} for i, r in enumerate(hits)]
     listing = listing_for(asin) or {}
-    lines = [f"LAPTOP: {product['brand']} {product['model']}",
+    lines = [f"{categories.get(product['category'])['noun'].upper()}: "
+             f"{product['brand']} {product['model']}",
              f"QUESTION: {question}", "",
              f"PRICE VERDICT: {VERDICT_TEXT[price['verdict']]}", "PRICE FACTS [P]:"]
     lines += [f"- {x}" for x in price["reasons"]]
@@ -125,24 +128,27 @@ def keepa_search(term):
 
 def plan(question):
     from datetime import date
-    text, _ = call_claude(question, system=PLANNER.format(today=date.today()), max_tokens=600)
+    system = PLANNER.format(today=date.today(), cats=categories.covered(),
+                            keys=", ".join(f'"{k}"' for k in categories.CATEGORIES))
+    text, _ = call_claude(question, system=system, max_tokens=600)
     return parse_answer(text)
 
 
 def ask_shopping(conn, question):
     p = plan(question)
-    if not p.get("is_laptop_question", True):
+    cat = p.get("category")
+    if cat not in categories.CATEGORIES:
         return {"kind": "shopping", "question": question, "plan": p, "candidates": [],
-                "answer": {"answer": "Myrmech Explorer only covers laptops for now. Try "
-                           "asking about a laptop, or paste a laptop link.", "picks": [],
-                           "caveats": ""}}
+                "answer": {"answer": f"Myrmech Explorer only covers {categories.covered()} for "
+                           "now. Try asking about one of those, or paste an Amazon link.",
+                           "picks": [], "caveats": ""}}
     lo, hi = p.get("min_price"), p.get("max_price")
     must = [re.compile(m, re.I) for m in (p.get("must_have") or []) if m]
     found, seen = [], set()
     for term in (p.get("search_terms") or [question])[:MAX_TERMS]:
         for prod in keepa_search(term):
             asin = prod.get("asin")
-            if not asin or asin in seen or not is_laptop(prod):
+            if not asin or asin in seen or categories.category_of(prod) != cat:
                 continue
             seen.add(asin)
             price = current_price(prod)
@@ -159,9 +165,9 @@ def ask_shopping(conn, question):
         row = register(conn, prod)
         verdict = analyze(conn, row)
         feats = [f[:160] for f in (prod.get("features") or []) if f][:4]
+        topics = " ".join(categories.get(cat)["aspects"][:3]) + " problem"
         reviews = [{"rating": r["rating"], "text": r["text"][:300]}
-                   for _, r in bm25_search(conn, row["parent_asin"],
-                                           "performance battery screen problem", k=2)]
+                   for _, r in bm25_search(conn, row["parent_asin"], topics, k=2)]
         candidates.append({"id": f"A{i + 1}", "asin": prod["asin"],
                            "name": (prod.get("title") or "")[:90],
                            "price": verdict.get("current_price"), "verdict": verdict["verdict"],
@@ -171,7 +177,7 @@ def ask_shopping(conn, question):
 
     if not candidates:
         return {"kind": "shopping", "question": question, "plan": p, "candidates": [],
-                "answer": {"answer": "I searched Amazon but found no laptops matching that "
+                "answer": {"answer": f"I searched Amazon but found no {categories.get(cat)['plural']} matching that "
                            f"({p.get('summary', '')}). Try a wider price range or fewer "
                            "must-have specs.", "picks": [], "caveats": ""}}
 
