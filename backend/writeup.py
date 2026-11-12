@@ -9,6 +9,7 @@ Usage, from the Dealsense folder:
 Answers are cached in data/writeups/<asin>.json.
 """
 import json
+import re
 import os
 import sys
 import urllib.error
@@ -145,13 +146,46 @@ def call_claude(prompt, system=None, max_tokens=2000):
     return text, data.get("usage", {})
 
 
+JSON_ONLY = ("\n\nReply with the JSON object only: start with { and end with }. No XML or "
+             "other tags, no code fences, and no text before or after it.")
+
+
 def parse_answer(text):
-    """Claude is asked for bare JSON; tolerate a code fence around it."""
+    """Claude is asked for bare JSON. Also accept a code fence around it, and the
+    tool-call style it sometimes uses instead (<parameter name="answer">...</parameter>)."""
     t = text.strip()
+    params = re.findall(r'<parameter name="(\w+)">(.*?)</parameter>', t, re.S)
+    if params:
+        out = {}
+        for key, value in params:
+            value = value.strip()
+            try:
+                out[key] = json.loads(value) if value[:1] in "[{" else value
+            except json.JSONDecodeError:
+                out[key] = value
+        return out
     if t.startswith("```"):
         t = t.split("\n", 1)[1].rsplit("```", 1)[0]
     start, end = t.find("{"), t.rfind("}")
+    if start < 0 or end < start:
+        raise ValueError("no JSON object in the reply")
     return json.loads(t[start:end + 1])
+
+
+def ask_json(prompt, system=None, max_tokens=2000):
+    """Call Claude and read its JSON reply; if it can't be read, ask once more.
+    Returns (answer dict or None, raw text, usage)."""
+    system = (system or SYSTEM) + JSON_ONLY
+    text, usage = call_claude(prompt, system=system, max_tokens=max_tokens)
+    for attempt in (1, 2):
+        try:
+            return parse_answer(text), text, usage
+        except (ValueError, json.JSONDecodeError):
+            if attempt == 2:
+                return None, text, usage
+        text, usage = call_claude(prompt + "\n\n(Your previous reply could not be read. "
+                                  "Reply with the JSON object only.)",
+                                  system=system, max_tokens=max_tokens)
 
 
 def writeup(conn, product, refresh=False, dry_run=False):
@@ -166,11 +200,10 @@ def writeup(conn, product, refresh=False, dry_run=False):
                 and "raw" not in cached.get("answer", {})
                 and "review_counts" in cached):    # written before live reviews: redo
             return cached
-    text, usage = call_claude(prompt)
-    try:
-        answer, ok = parse_answer(text), True
-    except (ValueError, json.JSONDecodeError):
-        answer, ok = {"headline": "Could not parse the write-up.", "raw": text}, False
+    answer, text, usage = ask_json(prompt)
+    ok = answer is not None
+    if not ok:
+        answer = {"headline": "Could not read the write-up. Try again in a moment.", "raw": text}
     result = {"product": f"{product['brand']} {product['model']}", "asin": product["asin"],
               "price": price, "reviews": reviews, "answer": answer, "usage": usage,
               "bestbuy": bestbuy, "review_counts": counts}

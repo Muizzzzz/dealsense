@@ -24,7 +24,7 @@ from backend.lookup import current_price, listing_for, register
 from backend.price_agent import analyze
 from backend import reviews as review_pool
 from backend.search import bm25_search
-from backend.writeup import VERDICT_TEXT, call_claude, parse_answer
+from backend.writeup import VERDICT_TEXT, ask_json
 
 SEARCH_CACHE = Path(__file__).resolve().parent.parent / "data" / "keepa_search"
 CACHE_HOURS = 6
@@ -99,11 +99,9 @@ def ask_product(conn, asin, question):
     for r in reviews:
         tag = f"{r['source']}, {str(r['date'])[:7]}{', incentivized' if r['incentivized'] else ''}"
         lines += [f"[{r['id']}] {r['rating']:.0f}/5 ({tag}). {r['title']}: {r['text']}"]
-    text, usage = call_claude("\n".join(lines), system=PRODUCT_QA, max_tokens=1200)
-    try:
-        answer = parse_answer(text)
-    except (ValueError, json.JSONDecodeError):
-        answer = {"answer": text.strip()}
+    answer, text, usage = ask_json("\n".join(lines), system=PRODUCT_QA, max_tokens=1200)
+    if answer is None:
+        answer = {"answer": "Sorry, I couldn't put an answer together. Please ask again."}
     return {"kind": "product", "question": question, "asin": asin, "answer": answer,
             "reviews": reviews, "usage": usage}
 
@@ -130,8 +128,10 @@ def plan(question):
     from datetime import date
     system = PLANNER.format(today=date.today(), cats=categories.covered(),
                             keys=", ".join(f'"{k}"' for k in categories.CATEGORIES))
-    text, _ = call_claude(question, system=system, max_tokens=600)
-    return parse_answer(text)
+    answer, text, _ = ask_json(question, system=system, max_tokens=600)
+    if answer is None:
+        raise SystemExit("Couldn't understand that question. Try rephrasing it.")
+    return answer
 
 
 def ask_shopping(conn, question, preset_plan=None, picks=3):
@@ -193,12 +193,11 @@ def ask_shopping(conn, question, preset_plan=None, picks=3):
         lines += [f"  Listing: {f}" for f in c["features"]]
         lines += [f"  Owner review ({r['rating']:.0f}/5): {r['text']}" for r in c["reviews"]]
         lines.append("")
-    text, usage = call_claude("\n".join(lines), system=RECOMMENDER.replace("PICKS", str(picks)),
-                              max_tokens=1500 + 150 * max(0, picks - 3))
-    try:
-        answer = parse_answer(text)
-    except (ValueError, json.JSONDecodeError):
-        answer = {"answer": text.strip(), "picks": [], "caveats": ""}
+    answer, text, usage = ask_json("\n".join(lines), system=RECOMMENDER.replace("PICKS", str(picks)),
+                                   max_tokens=1500 + 150 * max(0, picks - 3))
+    if answer is None:
+        answer = {"answer": "I found these listings but couldn't write a recommendation. "
+                            "Compare them below, or try again.", "picks": [], "caveats": ""}
     return {"kind": "shopping", "question": question, "plan": p, "candidates": candidates,
             "answer": answer, "usage": usage}
 
