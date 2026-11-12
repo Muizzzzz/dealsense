@@ -1,4 +1,4 @@
-"""Myrmech Explorer web API (FastAPI). Also serves the web page in /web.
+"""MyrmX web API (FastAPI). Also serves the web page in /web.
 
 Run, from the Dealsense folder:
     py -m pip install fastapi uvicorn      (once)
@@ -11,7 +11,8 @@ Endpoints:
     GET  /api/check/{asin}          full result for a product already in the database
     POST /api/lookup  {"query": …}  any Amazon laptop or headphones link or ASIN
                                     (1 Keepa token if new)
-    POST /api/ask     {"question": …, "asin": optional}
+    GET  /api/uses                  the "What's it for?" shortcuts per category
+    POST /api/ask     {"question": …, "asin": optional, "preset": optional}
                                     shopping question (Keepa search, ~10-20 tokens), or a
                                     question about one product when asin is given
 Add ?writeup=false to skip the Claude write-up (faster, free).
@@ -37,7 +38,7 @@ from backend.writeup import writeup
 WEB = Path(__file__).resolve().parent.parent / "web"
 CHART_DAYS = 730
 
-app = FastAPI(title="Myrmech Explorer")
+app = FastAPI(title="MyrmX")
 
 load_env()
 PASSCODE = os.environ.get("APP_PASSCODE", "")   # unset = no passcode (local demo)
@@ -105,6 +106,11 @@ def laptops():
         "THEN 1 ELSE 2 END, model")]
 
 
+@app.get("/api/uses")
+def uses():
+    return categories.all_uses()
+
+
 @app.get("/api/examples")
 def examples():
     """Home-page examples per category, skipping any not yet in the database."""
@@ -146,13 +152,23 @@ def lookup_route(q: Query, writeup: bool = True):
 
 
 class Ask(BaseModel):
-    question: str
+    question: str = ""
     asin: str | None = None
+    preset: str | None = None        # "laptop:designer": a "What's it for?" shortcut
 
 
 @app.post("/api/ask")
 def ask_route(q: Ask):
     from backend.shop import ask_product, ask_shopping
+    if q.preset:
+        key, plan, label = categories.use_plan(q.preset)
+        if not plan:
+            raise HTTPException(400, "Unknown shortcut.")
+        question = f"The best {categories.get(key)['plural']} for: {label.lower()}"
+        try:
+            return ask_shopping(connect(), question, preset_plan=plan, picks=5)
+        except SystemExit as e:
+            raise HTTPException(502, str(e))
     question = q.question.strip()
     if len(question) < 3:
         raise HTTPException(400, "Type a shopping question, e.g. "

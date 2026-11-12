@@ -1,4 +1,4 @@
-"""Ask Myrmech Explorer a question.
+"""Ask MyrmX a question.
 
 Two kinds of question:
 1. Shopping ("a good laptop with an RTX 50-series card around $800", "earbuds for running"):
@@ -43,7 +43,7 @@ requirements that sellers always put in the title,
  "summary": one sentence restating what they want}}
 If they give one target price ("around $800"), use a range of about -20% to +15%."""
 
-RECOMMENDER = """You are Myrmech Explorer, a shopping assistant for laptops and headphones. Answer the shopper's \
+RECOMMENDER = """You are MyrmX, a shopping assistant for laptops and headphones. Answer the shopper's \
 question using only the CANDIDATES provided: real Amazon listings found just now, each with \
 its current price and a price verdict from a statistical model.
 
@@ -57,10 +57,10 @@ when it matters. Owner reviews are rare for new products; use them only if given
 
 Return only JSON:
 {"answer": 2-4 sentences answering the question,
- "picks": list of up to 3 {"id": "A1", "why": one sentence, citing it},
+ "picks": list of up to PICKS {"id": "A1", "why": one sentence, citing it},
  "caveats": one sentence on what to double-check before buying, or ""}"""
 
-PRODUCT_QA = """You are Myrmech Explorer. Answer the shopper's question about ONE product using \
+PRODUCT_QA = """You are MyrmX. Answer the shopper's question about ONE product using \
 only the PRICE FACTS [P], LISTING [L], BEST BUY SUMMARY [B] and REVIEWS provided. Cite review \
 claims with their IDs ([R2]). Reviews are either current Best Buy reviews or older Amazon \
 reviews (2023 dataset); prefer the newer ones when they disagree, and note it when the reviews \
@@ -134,12 +134,14 @@ def plan(question):
     return parse_answer(text)
 
 
-def ask_shopping(conn, question):
-    p = plan(question)
+def ask_shopping(conn, question, preset_plan=None, picks=3):
+    """A shopping question, or a "What's it for?" shortcut when preset_plan is given
+    (a ready-made search plan from categories.py, so no planning step is needed)."""
+    p = preset_plan or plan(question)
     cat = p.get("category")
     if cat not in categories.CATEGORIES:
         return {"kind": "shopping", "question": question, "plan": p, "candidates": [],
-                "answer": {"answer": f"Myrmech Explorer only covers {categories.covered()} for "
+                "answer": {"answer": f"MyrmX only covers {categories.covered()} for "
                            "now. Try asking about one of those, or paste an Amazon link.",
                            "picks": [], "caveats": ""}}
     lo, hi = p.get("min_price"), p.get("max_price")
@@ -191,7 +193,8 @@ def ask_shopping(conn, question):
         lines += [f"  Listing: {f}" for f in c["features"]]
         lines += [f"  Owner review ({r['rating']:.0f}/5): {r['text']}" for r in c["reviews"]]
         lines.append("")
-    text, usage = call_claude("\n".join(lines), system=RECOMMENDER, max_tokens=1500)
+    text, usage = call_claude("\n".join(lines), system=RECOMMENDER.replace("PICKS", str(picks)),
+                              max_tokens=1500 + 150 * max(0, picks - 3))
     try:
         answer = parse_answer(text)
     except (ValueError, json.JSONDecodeError):

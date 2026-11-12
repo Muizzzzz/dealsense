@@ -114,7 +114,7 @@ def lookup(conn, text):
     asin = resolve_asin(text)
     p = fetch_product(asin)
     if not category_of(p):
-        raise LookupError_(f"That looks like \"{(p.get('title') or '')[:80]}\". Myrmech Explorer "
+        raise LookupError_(f"That looks like \"{(p.get('title') or '')[:80]}\". MyrmX "
                            f"only covers {covered()} for now.")
     return register(conn, p)
 

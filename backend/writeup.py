@@ -30,7 +30,7 @@ MODEL = "claude-sonnet-5-5"     # override with DEALSENSE_MODEL in .env
 PER_ASPECT = 2
 SNIPPET = 600
 
-SYSTEM = """You are Myrmech Explorer, a shopping assistant that tells people whether a product's \
+SYSTEM = """You are MyrmX, a shopping assistant that tells people whether a product's \
 current price is a good deal and what owners say about it. It covers laptops and headphones.
 
 Rules:

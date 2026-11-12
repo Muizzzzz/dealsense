@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Myrmech Explorer</title>
+<title>MyrmX</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
@@ -78,7 +78,27 @@ form.search button:disabled { opacity: .6; cursor: progress; }
 .prompt:hover { color: var(--ink); border-color: var(--ink-3); }
 
 /* shopping answer */
-.shop-q { color: var(--ink-3); font-size: .92rem; margin: 0 0 6px; }
+.shop-q { color: var(--ink-3); font-size: .92rem; margin: 0 0 6px; padding-right: 88px; }
+/* "What's it for?" shortcuts */
+.uses { margin-top: 26px; }
+.uses h2 { font-size: .95rem; font-weight: 600; margin: 0 0 10px; color: var(--ink-2); }
+.tabs { display: inline-flex; gap: 4px; padding: 3px; border: 1px solid var(--rule);
+  border-radius: 999px; margin-bottom: 10px; }
+.tab { font: inherit; font-size: .85rem; padding: 5px 14px; border-radius: 999px; border: 0;
+  background: transparent; color: var(--ink-2); cursor: pointer; }
+.tab[aria-selected="true"] { background: var(--accent); color: #0b1220; font-weight: 600; }
+.use { font: inherit; font-size: .88rem; color: var(--ink); background: var(--sheet);
+  border: 1px solid var(--rule); border-radius: 999px; padding: 7px 14px; cursor: pointer; }
+.use:hover { border-color: var(--accent); }
+/* close / minimise a result */
+.result { position: relative; }
+.bar { position: absolute; top: 12px; right: 12px; display: flex; gap: 4px; }
+.bar button { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--rule);
+  background: transparent; color: var(--ink-2); font-size: 1.1rem; line-height: 1; cursor: pointer; }
+.bar button:hover { color: var(--ink); border-color: var(--ink-3); }
+.result.min { padding-top: 16px; padding-bottom: 16px; }
+.result.min > :not(.bar):not(.keep) { display: none; }
+.result.min .keep .r-sub, .result.min .keep .r-link { display: none; }
 .shop-answer { font-size: 1.15rem; max-width: 64ch; margin: 0 0 18px; }
 .picks { margin: 0 0 22px; padding: 0; list-style: none; max-width: 70ch; }
 .picks li { padding: 8px 0 8px 22px; position: relative; color: var(--ink-2); }
@@ -143,7 +163,7 @@ form.search button:disabled { opacity: .6; cursor: progress; }
   padding: 28px; margin: 8px 0 48px; }
 .result[hidden] { display: none; }
 .r-head { display: flex; justify-content: space-between; gap: 16px; align-items: baseline;
-  flex-wrap: wrap; }
+  flex-wrap: wrap; padding-right: 80px; }
 .r-name { font-size: 1.25rem; font-weight: 700; margin: 0; max-width: 46ch; }
 .r-sub { color: var(--ink-3); font-size: .88rem; margin: 2px 0 0; }
 .r-link { color: var(--accent); font-weight: 600; font-size: .92rem; }
@@ -222,12 +242,12 @@ footer { color: var(--ink-3); font-size: .82rem; padding: 0 0 40px; max-width: 7
 </style>
 </head>
 <body>
-<header class="top wrap"><div class="brand">Myrmech <b>Explorer</b></div></header>
+<header class="top wrap"><div class="brand">Myrm<b>X</b></div></header>
 
 <main class="wrap">
   <section class="ask">
     <h1>Find the right product at the right price.</h1>
-    <p class="lede">Ask for what you need, or paste an Amazon product link. Myrmech Explorer searches
+    <p class="lede">Ask for what you need, or paste an Amazon product link. MyrmX searches
       Amazon, checks each product's real price history, tells you whether today's price is low, normal
       or inflated, and sums up what owners say. We cover laptops and headphones so far.</p>
     <form class="search" id="search">
@@ -240,6 +260,11 @@ footer { color: var(--ink-3); font-size: .82rem; padding: 0 0 40px; max-width: 7
       <button class="prompt" type="button">Noise-cancelling headphones under $200</button>
       <button class="prompt" type="button">Earbuds for running that stay in</button>
     </div>
+    <div class="uses" id="uses" hidden>
+      <h2>What's it for?</h2>
+      <div class="tabs" id="use-tabs" role="tablist"></div>
+      <div class="chips" id="use-chips"></div>
+    </div>
     <div class="examples">
       <h2>Or check one of these</h2>
       <div id="chips"></div>
@@ -249,12 +274,14 @@ footer { color: var(--ink-3); font-size: .82rem; padding: 0 0 40px; max-width: 7
   <div id="msg"></div>
 
   <section class="result" id="shop" hidden aria-live="polite">
-    <p class="shop-q" id="shop-q"></p>
+    <div class="bar"><button type="button" class="min-btn" aria-label="Minimize" title="Minimize">&minus;</button><button type="button" class="close-btn" aria-label="Close" title="Close">&times;</button></div>
+    <p class="shop-q keep" id="shop-q"></p>
     <div id="shop-body"></div>
   </section>
 
   <section class="result" id="result" hidden aria-live="polite">
-    <div class="r-head">
+    <div class="bar"><button type="button" class="min-btn" aria-label="Minimize" title="Minimize">&minus;</button><button type="button" class="close-btn" aria-label="Close" title="Close">&times;</button></div>
+    <div class="r-head keep">
       <div>
         <h2 class="r-name" id="r-name"></h2>
         <p class="r-sub" id="r-sub"></p>
@@ -313,7 +340,7 @@ footer { color: var(--ink-3); font-size: .82rem; padding: 0 0 40px; max-width: 7
 </main>
 
 <footer class="wrap">
-  Myrmech Explorer. Prices and live Amazon search from Keepa (Amazon US, lowest new price from any
+  MyrmX. Prices and live Amazon search from Keepa (Amazon US, lowest new price from any
   seller). Owner reviews from Best Buy (current reviews of the same model) and
   from the Amazon Reviews 2023 dataset (McAuley Lab, UCSD) for laptops sold through 2023. Amazon no
   longer shows review text to signed-out visitors, so current Amazon reviews aren't included. Verdicts come from a statistical price model; Claude only explains them and writes
@@ -397,6 +424,25 @@ async function loadChips() {
   } catch (e) { $("chips").textContent = "Couldn't load the examples: " + e.message; }
 }
 
+/* ---------- "What's it for?" shortcuts ---------- */
+async function loadUses() {
+  try {
+    const groups = await api("/api/uses");
+    const pick = (i) => {
+      $("use-tabs").querySelectorAll(".tab").forEach((t, j) => t.setAttribute("aria-selected", i === j));
+      $("use-chips").innerHTML = groups[i].uses.map(u =>
+        `<button class="use" type="button" data-preset="${esc(u.key)}">${esc(u.label)}</button>`).join("");
+      $("use-chips").querySelectorAll(".use").forEach(b =>
+        b.addEventListener("click", () => askShopping(b.textContent, b.dataset.preset)));
+    };
+    $("use-tabs").innerHTML = groups.map((g, i) =>
+      `<button class="tab" type="button" role="tab" data-i="${i}">${esc(g.label)}</button>`).join("");
+    $("use-tabs").querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => pick(+t.dataset.i)));
+    pick(0);
+    $("uses").hidden = false;
+  } catch (e) { /* shortcuts are optional; the rest of the page still works */ }
+}
+
 /* ---------- main flow: price first, write-up second ---------- */
 let current = 0;
 async function run({asin, query}) {
@@ -426,28 +472,44 @@ $("search").addEventListener("submit", (e) => {
   e.preventDefault();
   const q = $("q").value.trim();
   if (!q) return;
+  $("q").value = "";                       // ready for the next link or question
   if (LINKISH.test(q)) run({query: q}); else askShopping(q);
 });
-document.querySelectorAll(".prompt").forEach(b => b.addEventListener("click", () => {
-  $("q").value = b.textContent; askShopping(b.textContent);
-}));
+document.querySelectorAll(".prompt").forEach(b => b.addEventListener("click", () =>
+  askShopping(b.textContent)));
+
+/* close / minimise a result card */
+function showCard(id) {
+  $(id).hidden = false;
+  $(id).classList.remove("min");
+  $(id).querySelector(".min-btn").innerHTML = "&minus;";
+}
+document.querySelectorAll(".result .bar").forEach(bar => {
+  const card = bar.parentElement;
+  bar.querySelector(".close-btn").addEventListener("click", () => { card.hidden = true; });
+  bar.querySelector(".min-btn").addEventListener("click", (e) => {
+    const min = card.classList.toggle("min");
+    e.currentTarget.innerHTML = min ? "&plus;" : "&minus;";
+    e.currentTarget.title = e.currentTarget.ariaLabel = min ? "Expand" : "Minimize";
+  });
+});
 
 /* ---------- shopping questions ---------- */
 function mini(verdict) {
   const v = VERDICT[verdict] || VERDICT.no_data;
   return `<span class="mini ${verdict}"><svg viewBox="0 0 24 24" aria-hidden="true">${v.icon}</svg>${v.label}</span>`;
 }
-async function askShopping(question) {
+async function askShopping(question, preset) {
   const ticket = ++current;
   showMsg("");
   $("go").disabled = true;
-  $("shop").hidden = false;
-  $("shop-q").textContent = "You asked: " + question;
+  showCard("shop");
+  $("shop-q").textContent = preset ? "Best picks for: " + question : "You asked: " + question;
   $("shop-body").innerHTML = '<p class="working">Searching Amazon and checking each product\'s price history (about 15 seconds)</p>';
   $("shop").scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
   try {
     const r = await api("/api/ask", {method: "POST", headers: {"Content-Type": "application/json"},
-                                      body: JSON.stringify({question})});
+                                      body: JSON.stringify(preset ? {preset} : {question})});
     if (ticket !== current) return;
     const a = r.answer || {};
     const byId = Object.fromEntries((r.candidates || []).map(c => [c.id, c]));
@@ -505,7 +567,7 @@ function renderPrice(d) {
   $("ask-one-h").textContent = d.noun === "headphones" ? "Ask about these headphones"
                              : `Ask about this ${d.noun || "product"}`;
   const p = d.price, v = VERDICT[p.verdict] || VERDICT.no_data;
-  $("result").hidden = false;
+  showCard("result");
   $("r-name").textContent = d.name;
   $("r-sub").textContent = subLine(d, d.review_count
     ? `${d.review_count.toLocaleString()} Amazon reviews from 2023` : "Looking for owner reviews");
@@ -722,10 +784,11 @@ const _render = renderPrice;
 renderPrice = (d) => { _render(d); window.__last = d; };
 
 loadChips();
+loadUses();
 </script>
 <div class="gate" id="gate" hidden>
   <form id="gate-form">
-    <h2>Myrmech Explorer</h2>
+    <h2>MyrmX</h2>
     <p>Enter the passcode to continue.</p>
     <input id="gate-input" type="password" autocomplete="current-password" aria-label="Passcode" required>
     <p class="err" id="gate-err" role="alert"></p>

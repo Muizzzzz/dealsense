@@ -1,4 +1,4 @@
-"""Product categories Myrmech Explorer covers, and everything that differs between them.
+"""Product categories MyrmX covers, and everything that differs between them.
 
 Adding a category means adding an entry here: how to recognise it from Keepa's data,
 which topics to pull reviews for, its price tiers, and the words the app uses for it.
@@ -21,6 +21,34 @@ CATEGORIES = {
         "tiers": (500, 1000),
         "examples": ["A laptop with an RTX 50-series card around $800",
                      "A light laptop for college under $600"],
+        # "What's it for?" shortcuts: a ready-made search plan per use (no planning step)
+        "uses": [
+            {"key": "student", "label": "Student",
+             "search_terms": ["student laptop 16GB", "lightweight laptop for college"],
+             "min_price": 300, "max_price": 800,
+             "summary": "A light, reliable laptop for schoolwork: long battery life, 8-16GB "
+                        "RAM, a comfortable keyboard, and a good price."},
+            {"key": "designer", "label": "Graphic designer",
+             "search_terms": ["laptop for graphic design OLED", "creator laptop 32GB"],
+             "min_price": 800, "max_price": 2200,
+             "summary": "A laptop for graphic design: a sharp, color-accurate screen "
+                        "(OLED or wide color gamut), 16-32GB RAM, and a strong CPU/GPU."},
+            {"key": "gamer", "label": "Gamer",
+             "search_terms": ["gaming laptop RTX 5060", "gaming laptop RTX 5070"],
+             "min_price": 800, "max_price": 2000, "must_have": ["RTX"],
+             "summary": "A gaming laptop with a recent NVIDIA RTX GPU, a high-refresh screen "
+                        "and good cooling."},
+            {"key": "programmer", "label": "Programmer",
+             "search_terms": ["laptop 32GB RAM 1TB SSD", "developer laptop 32GB"],
+             "min_price": 700, "max_price": 1800,
+             "summary": "A laptop for programming: 16-32GB RAM, a fast SSD, a good keyboard "
+                        "and enough battery for a day."},
+            {"key": "travel", "label": "Business travel",
+             "search_terms": ["ultralight business laptop", "thin and light laptop long battery"],
+             "min_price": 600, "max_price": 1800,
+             "summary": "A thin, light laptop for travel: long battery life, a solid build "
+                        "and a good webcam for calls."},
+        ],
     },
     "headphones": {
         "noun": "headphones", "plural": "headphones and earbuds", "short": "headphones",
@@ -38,6 +66,33 @@ CATEGORIES = {
         "tiers": (100, 250),
         "examples": ["Noise-cancelling headphones under $200",
                      "Earbuds for running that stay in"],
+        "uses": [
+            {"key": "commute", "label": "Commuting and travel",
+             "search_terms": ["noise cancelling headphones", "noise cancelling earbuds"],
+             "min_price": 60, "max_price": 450, "must_have": ["noise.?cancel|ANC"],
+             "summary": "Headphones or earbuds for commuting and flights: strong noise "
+                        "cancelling, long battery life and comfort for hours."},
+            {"key": "workout", "label": "Working out",
+             "search_terms": ["sports earbuds for running", "workout earbuds ear hooks"],
+             "min_price": 25, "max_price": 250,
+             "summary": "Earbuds for workouts and running: a secure fit, sweat resistance and "
+                        "decent battery life."},
+            {"key": "gaming", "label": "Gaming",
+             "search_terms": ["gaming headset", "wireless gaming headset"],
+             "min_price": 40, "max_price": 300,
+             "summary": "A gaming headset: a clear microphone, comfort for long sessions and "
+                        "good positional sound."},
+            {"key": "calls", "label": "Calls and work",
+             "search_terms": ["headset with microphone for calls", "bluetooth headset noise cancelling microphone"],
+             "min_price": 30, "max_price": 300,
+             "summary": "A headset for calls and remote work: a clear microphone that blocks "
+                        "background noise, comfort and reliable Bluetooth."},
+            {"key": "music", "label": "Music lovers",
+             "search_terms": ["hi-fi headphones", "studio monitor headphones"],
+             "min_price": 80, "max_price": 500,
+             "summary": "Headphones for listening to music: detailed, balanced sound and "
+                        "comfort, wired or wireless."},
+        ],
     },
 }
 DEFAULT = "laptop"
@@ -85,3 +140,22 @@ def covered():
     """'laptops and headphones', for messages."""
     names = [c["short"] for c in CATEGORIES.values()]
     return " and ".join([", ".join(names[:-1]), names[-1]]) if len(names) > 1 else names[0]
+
+
+def use_plan(preset):
+    """'laptop:designer' -> (category key, search plan, label), or (None, None, None)."""
+    key, _, use = (preset or "").partition(":")
+    for u in CATEGORIES.get(key, {}).get("uses", []):
+        if u["key"] == use:
+            plan = {"category": key, "search_terms": u["search_terms"],
+                    "min_price": u["min_price"], "max_price": u["max_price"],
+                    "must_have": u.get("must_have", []), "summary": u["summary"]}
+            return key, plan, u["label"]
+    return None, None, None
+
+
+def all_uses():
+    """For the web page: [{category, label, uses: [{key, label}]}]."""
+    return [{"category": k, "label": c["short"].capitalize(),
+             "uses": [{"key": f"{k}:{u['key']}", "label": u["label"]} for u in c["uses"]]}
+            for k, c in CATEGORIES.items()]
