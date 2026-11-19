@@ -12,7 +12,9 @@ Endpoints:
     POST /api/lookup  {"query": …}  any Amazon laptop or headphones link or ASIN
                                     (1 Keepa token if new)
     GET  /api/uses                  the "What's it for?" shortcuts per category
-    POST /api/ask     {"question": …, "asin": optional, "preset": optional}
+    POST /api/ask     {"question": …, "asin": optional, "preset": optional,
+                       "plan": optional, "history": optional}
+                                    plan + history: a follow-up that refines the last search
                                     shopping question (Keepa search, ~10-20 tokens), or a
                                     question about one product when asin is given
 Add ?writeup=false to skip the Claude write-up (faster, free).
@@ -155,6 +157,8 @@ class Ask(BaseModel):
     question: str = ""
     asin: str | None = None
     preset: str | None = None        # "laptop:designer": a "What's it for?" shortcut
+    plan: dict | None = None         # the previous search plan, when this is a follow-up
+    history: str | None = None       # what was asked before, shown as a trail
 
 
 @app.post("/api/ask")
@@ -169,7 +173,14 @@ def ask_route(q: Ask):
             return ask_shopping(connect(), question, preset_plan=plan, picks=5)
         except SystemExit as e:
             raise HTTPException(502, str(e))
-    question = q.question.strip()
+    question = q.question.strip()[:300]
+    if q.plan and len(question) >= 2:               # follow-up: refine the last search
+        from backend.shop import refine
+        trail = f"{(q.history or '').strip()[:300]} → {question}".lstrip(" →")
+        try:
+            return ask_shopping(connect(), trail, preset_plan=refine(q.plan, question), picks=5)
+        except SystemExit as e:
+            raise HTTPException(502, str(e))
     if len(question) < 3:
         raise HTTPException(400, "Type a shopping question, e.g. "
                                  "\"a light laptop for college under $700\".")

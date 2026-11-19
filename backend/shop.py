@@ -134,6 +134,57 @@ def plan(question):
     return answer
 
 
+REFINER = """You update an Amazon product search plan with a shopper's follow-up. You get \
+the CURRENT PLAN (JSON) and the FOLLOW-UP. Return only the updated plan as JSON with exactly \
+these keys: category, search_terms, min_price, max_price, must_have, summary.
+Rules:
+- Keep everything the follow-up doesn't change. Keep the category unless the shopper clearly \
+switches to another one we cover ({cats}); keys: {keys}.
+- Budget: "under $X" sets max_price X; "around $X" is about -20% to +15%; "cheaper" lowers \
+max_price by about 25%.
+- Change search_terms (up to 2 short Amazon phrases) only when the current terms would not \
+find what they now ask for, e.g. a brand, a specific chip, or a different type of product.
+- must_have: short case-insensitive regular expressions a listing title must contain, only \
+for hard requirements sellers always put in titles (a brand, "32 ?GB", "OLED", "RTX"). Add \
+to the existing list; drop an entry only if the shopper drops that requirement.
+- summary: one sentence describing everything they now want."""
+
+
+def clean_plan(p):
+    """Keep a plan (which may come back from the browser) to the expected shape."""
+    def num(v):
+        try:
+            return float(v) if v not in (None, "") else None
+        except (TypeError, ValueError):
+            return None
+    terms = [str(t)[:80] for t in (p.get("search_terms") or []) if str(t).strip()][:MAX_TERMS]
+    must = [str(m)[:60] for m in (p.get("must_have") or []) if str(m).strip()][:5]
+    for m in list(must):
+        try:
+            re.compile(m)
+        except re.error:
+            must.remove(m)
+    return {"category": p.get("category") if p.get("category") in categories.CATEGORIES else None,
+            "search_terms": terms, "min_price": num(p.get("min_price")),
+            "max_price": num(p.get("max_price")), "must_have": must,
+            "summary": str(p.get("summary") or "")[:300]}
+
+
+def refine(previous_plan, followup):
+    """The previous search plan, updated with a follow-up ("under $1200", "32GB RAM")."""
+    system = REFINER.format(cats=categories.covered(),
+                            keys=", ".join(f'"{k}"' for k in categories.CATEGORIES))
+    prompt = (f"CURRENT PLAN: {json.dumps(clean_plan(previous_plan))}\n"
+              f"FOLLOW-UP: {followup}")
+    answer, _, _ = ask_json(prompt, system=system, max_tokens=600)
+    if answer is None:
+        raise SystemExit("Couldn't understand that follow-up. Try rephrasing it.")
+    new = clean_plan(answer)
+    if not new["search_terms"]:
+        new["search_terms"] = clean_plan(previous_plan)["search_terms"]
+    return new
+
+
 def ask_shopping(conn, question, preset_plan=None, picks=3):
     """A shopping question, or a "What's it for?" shortcut when preset_plan is given
     (a ready-made search plan from categories.py, so no planning step is needed)."""

@@ -277,6 +277,14 @@ footer { color: var(--ink-3); font-size: .82rem; padding: 0 0 40px; max-width: 7
     <div class="bar"><button type="button" class="min-btn" aria-label="Minimize" title="Minimize">&minus;</button><button type="button" class="close-btn" aria-label="Close" title="Close">&times;</button></div>
     <p class="shop-q keep" id="shop-q"></p>
     <div id="shop-body"></div>
+    <div class="ask-one" id="refine-box" hidden>
+      <h3>Refine these results</h3>
+      <form id="refine">
+        <label for="q2" class="sr" style="position:absolute;left:-9999px">Follow-up to narrow these results</label>
+        <input id="q2" placeholder="Under $1,200? Needs 32GB RAM? Only Apple?" autocomplete="off" required>
+        <button type="submit">Refine</button>
+      </form>
+    </div>
   </section>
 
   <section class="result" id="result" hidden aria-live="polite">
@@ -499,18 +507,25 @@ function mini(verdict) {
   const v = VERDICT[verdict] || VERDICT.no_data;
   return `<span class="mini ${verdict}"><svg viewBox="0 0 24 24" aria-hidden="true">${v.icon}</svg>${v.label}</span>`;
 }
-async function askShopping(question, preset) {
+let lastShop = null;          // {plan, question} of the list on screen, for follow-ups
+async function askShopping(question, preset, followup) {
   const ticket = ++current;
   showMsg("");
   $("go").disabled = true;
   showCard("shop");
-  $("shop-q").textContent = preset ? "Best picks for: " + question : "You asked: " + question;
+  $("refine-box").hidden = true;
+  $("shop-q").textContent = followup ? "Refined: " + followup.history + " → " + question
+                          : preset ? "Best picks for: " + question : "You asked: " + question;
   $("shop-body").innerHTML = '<p class="working">Searching Amazon and checking each product\'s price history (about 15 seconds)</p>';
   $("shop").scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
   try {
     const r = await api("/api/ask", {method: "POST", headers: {"Content-Type": "application/json"},
-                                      body: JSON.stringify(preset ? {preset} : {question})});
+                                      body: JSON.stringify(preset ? {preset}
+                                        : followup ? {question, plan: followup.plan, history: followup.history}
+                                        : {question})});
     if (ticket !== current) return;
+    lastShop = r.plan && r.plan.category ? {plan: r.plan, question: preset ? question : r.question} : null;
+    $("refine-box").hidden = !lastShop;
     const a = r.answer || {};
     const byId = Object.fromEntries((r.candidates || []).map(c => [c.id, c]));
     let html = `<p class="shop-answer">${cites(a.answer || "")}</p>`;
@@ -535,6 +550,14 @@ async function askShopping(question, preset) {
     if (ticket === current) $("go").disabled = false;
   }
 }
+
+$("refine").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const q = $("q2").value.trim();
+  if (!q || !lastShop) return;
+  $("q2").value = "";
+  askShopping(q, null, {plan: lastShop.plan, history: lastShop.question});
+});
 
 /* ---------- questions about the open product ---------- */
 let qaCount = 0;
