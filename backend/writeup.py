@@ -23,6 +23,7 @@ from backend.lookup import listing_for
 from backend.price_agent import analyze
 from backend import categories
 from backend import reviews as review_pool
+from backend import sale_outlook
 from backend.search import find_product
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -47,6 +48,9 @@ more than praise.
 as [L]. Use it only to say what the product is, never as evidence that it is good.
 - If there are no REVIEWS, say plainly that we found no owner reviews for this product, leave "pros" and "cons" as empty lists, and base the advice on price alone.
 - The price verdict is already decided by a statistical model. Explain it; never change it.
+- SALE OUTLOOK is a rough estimate of a price drop at the next sale event (cite it as [P]). \
+If the event is within about two weeks, the chance is 30% or more, and today's price is not \
+already low, it is reasonable to suggest waiting for it. Never present it as certain.
 - Cite every claim from a review with its ID in square brackets, e.g. [R3]. Cite price \
 facts with [P] and the Best Buy summary with [B].
 - If reviews disagree, say so. If the evidence on something is thin, say that too.
@@ -102,6 +106,10 @@ def build_prompt(product, price, reviews, bestbuy=None):
              f"PRICE VERDICT (as of {price['as_of']}): {VERDICT_TEXT[price['verdict']]}",
              "PRICE FACTS [P]:"]
     lines += [f"- {r}" for r in price["reasons"]]
+    outlook = sale_outlook.facts(sale_outlook.outlook(connect(), product))
+    if outlook:
+        lines += ["", "SALE OUTLOOK [P] (estimate from past sale events):"]
+        lines += [f"- {f}" for f in outlook]
     facts = review_pool.bestbuy_facts(bestbuy)
     if facts:
         lines += ["", "BEST BUY SUMMARY [B] (all Best Buy reviews of this model):"]
@@ -198,7 +206,7 @@ def writeup(conn, product, refresh=False, dry_run=False):
         cached = json.loads(cache.read_text(encoding="utf-8"))
         if (cached.get("price", {}).get("as_of") == str(date.today())
                 and "raw" not in cached.get("answer", {})
-                and "review_counts" in cached):    # written before live reviews: redo
+                and cached.get("version", 0) >= 2):   # older write-ups lack reviews/outlook
             return cached
     answer, text, usage = ask_json(prompt)
     ok = answer is not None
@@ -206,7 +214,7 @@ def writeup(conn, product, refresh=False, dry_run=False):
         answer = {"headline": "Could not read the write-up. Try again in a moment.", "raw": text}
     result = {"product": f"{product['brand']} {product['model']}", "asin": product["asin"],
               "price": price, "reviews": reviews, "answer": answer, "usage": usage,
-              "bestbuy": bestbuy, "review_counts": counts}
+              "bestbuy": bestbuy, "review_counts": counts, "version": 2}
     if ok:                                 # never cache a broken answer
         CACHE.mkdir(parents=True, exist_ok=True)
         cache.write_text(json.dumps(result, indent=2), encoding="utf-8")

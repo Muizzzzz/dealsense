@@ -35,6 +35,7 @@ from backend.db import connect
 from backend.keepa import load_env
 from backend.lookup import LookupError_, lookup
 from backend.price_agent import analyze, daily_prices
+from backend.sale_outlook import outlook
 from backend.writeup import writeup
 
 WEB = Path(__file__).resolve().parent.parent / "web"
@@ -79,6 +80,7 @@ def full_result(conn, product, with_writeup=True):
         "review_count": product["review_count"],
         "amazon_url": f"https://www.amazon.com/dp/{product['asin']}",
         "price": price, "chart": chart(conn, product["asin"]),
+        "outlook": outlook(conn, product),
         "writeup": None, "reviews": [], "bestbuy": None, "review_counts": None,
     }
     if with_writeup:

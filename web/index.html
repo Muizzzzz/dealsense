@@ -186,6 +186,20 @@ form.search button:disabled { opacity: .6; cursor: progress; }
 .ruler svg { width: 100%; max-width: 760px; height: 86px; display: block; overflow: visible; }
 .ruler .caption { font-size: .85rem; color: var(--ink-3); margin-top: 4px; }
 
+/* chart + sale outlook side by side */
+.chart-row { display: grid; grid-template-columns: minmax(0, 1fr) 270px; gap: 28px; align-items: start; }
+@media (max-width: 860px) { .chart-row { grid-template-columns: minmax(0, 1fr); } }
+.outlook { margin-top: 30px; border: 1px solid var(--rule); border-radius: 12px; padding: 16px 18px;
+  background: var(--raised); }
+.outlook h3 { font-size: 1rem; margin: 0 0 2px; }
+.outlook .when { font-size: .84rem; color: var(--ink-3); margin: 0 0 12px; }
+.outlook .chance { font-size: 2rem; font-weight: 800; line-height: 1; }
+.outlook .chance small { font-size: .9rem; font-weight: 500; color: var(--ink-2); margin-left: 6px; }
+.outlook .meter { height: 8px; border-radius: 999px; background: var(--band); margin: 10px 0 14px;
+  overflow: hidden; }
+.outlook .meter span { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+.outlook p { font-size: .9rem; color: var(--ink-2); margin: 0 0 8px; }
+.outlook .note { font-size: .78rem; color: var(--ink-3); margin: 10px 0 0; }
 /* chart */
 .chart-box { margin-top: 30px; position: relative; }
 .chart-box h3, .col h3 { font-size: 1rem; margin: 0 0 8px; }
@@ -304,6 +318,7 @@ footer { color: var(--ink-3); font-size: .82rem; padding: 0 0 40px; max-width: 7
 
     <div class="ruler" id="ruler"></div>
 
+    <div class="chart-row">
     <div class="chart-box" id="chart-box">
       <h3>Lowest new price, last 2 years</h3>
       <svg id="chart" role="img" aria-label="Price history chart"></svg>
@@ -314,6 +329,8 @@ footer { color: var(--ink-3); font-size: .82rem; padding: 0 0 40px; max-width: 7
         <span><i style="border-top:2px dashed var(--median);height:0;vertical-align:3px"></i>180-day median</span>
       </div>
       <details class="table"><summary>Show the numbers as a table</summary><div id="table"></div></details>
+    </div>
+    <aside class="outlook" id="outlook" hidden aria-label="Sale outlook"></aside>
     </div>
 
     <div class="cols">
@@ -609,6 +626,31 @@ function renderPrice(d) {
   if (!window.__last || window.__last.asin !== d.asin) $("qa").innerHTML = "";
   drawRuler(p);
   drawChart(d.chart, p);
+  renderOutlook(d.outlook);
+}
+
+function shortDate(iso) {
+  return new Date(iso + "T12:00:00").toLocaleDateString("en-US", {month: "short", day: "numeric"});
+}
+function renderOutlook(o) {
+  const box = $("outlook");
+  box.hidden = !o;
+  if (!o) return;
+  const pct = Math.round(o.probability * 20) * 5;
+  const when = o.happening ? "Happening now"
+    : `${shortDate(o.start)} to ${shortDate(o.end)}${o.announced ? "" : " (expected)"} · ${o.days_away} day${o.days_away === 1 ? "" : "s"} away`;
+  const past = o.past.length ? `Past ${esc(o.name.split(" to ")[0])}s for this product: ` +
+    o.past.map(x => `${x.year} ${x.drop >= 0.005 ? "−" + Math.round(x.drop * 100) + "%" : "no drop"}`).join(", ") + "." : "";
+  box.innerHTML = `<h3>${esc(o.name.split(" to ")[0])} outlook</h3>
+    <p class="when">${when}</p>
+    <div class="chance num">~${pct}%<small>chance of a 5%+ drop</small></div>
+    <div class="meter" role="img" aria-label="About ${pct} percent"><span style="width:${pct}%"></span></div>
+    ${o.already_low
+      ? `<p>Today's ${money(o.current_price)} is already about as low as a typical sale price.</p>`
+      : `<p>If it drops, sales like this are usually about ${Math.round(o.typical_drop * 100)}% off: around <b class="num">${money(o.expected_sale_price)}</b>.</p>`}
+    <p>Why: ${esc(o.reasons.join("; "))}.</p>
+    ${past ? `<p>${past}</p>` : ""}
+    <p class="note">A rough estimate learned from ${o.trained_on || "past"} past sale events across the products we track. Not a guarantee.</p>`;
 }
 
 function cites(text) {
